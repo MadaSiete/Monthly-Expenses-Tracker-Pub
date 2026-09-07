@@ -7,7 +7,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
 
-st.set_page_config(page_title="BCA Tracker SaaS", page_icon="💸", layout="centered")
+st.set_page_config(page_title="Expenses Tracker Service", page_icon="💸", layout="centered")
 
 hide_pull_to_refresh = """
     <style>
@@ -24,7 +24,7 @@ if 'username' not in st.session_state:
 # --- HALAMAN LOGIN ---
 if st.session_state.username is None:
     st.title("👋 Welcome to Tracker Keuangan")
-    st.write("Tiap pengguna akan dapet Tab Database masing-masing secara otomatis!")
+    st.write("Silahkan Login!")
     
     with st.form("login_form"):
         username_input = st.text_input("Masukkan Username (Tanpa spasi):")
@@ -32,7 +32,7 @@ if st.session_state.username is None:
         
         if submit_login:
             if username_input.strip() == "":
-                st.warning("Nama gak boleh kosong bro!")
+                st.warning("Mohon diisi")
             else:
                 st.session_state.username = username_input.strip().lower()
                 st.rerun()
@@ -63,7 +63,7 @@ with st.spinner(f"Membuka database untuk {st.session_state.username}..."):
     try:
         sh = gc.open(MASTER_SHEET_NAME)
     except gspread.exceptions.SpreadsheetNotFound:
-        st.error(f"❌ File '{MASTER_SHEET_NAME}' belum ada atau lu belum nge-share filenya ke email bot sebagai Editor!")
+        # st.error(f"❌ File '{MASTER_SHEET_NAME}' belum ada atau lu belum nge-share filenya ke email bot sebagai Editor!")
         st.stop()
         
     try:
