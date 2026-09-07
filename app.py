@@ -7,7 +7,6 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
 
-# 1. Konfigurasi Halaman & CSS Anti-Refresh
 st.set_page_config(page_title="Expenses Tracker App", page_icon="💸", layout="centered")
 
 hide_pull_to_refresh = """
@@ -19,16 +18,12 @@ hide_pull_to_refresh = """
 """
 st.markdown(hide_pull_to_refresh, unsafe_allow_html=True)
 
-# ==========================================
-# 2. SISTEM LOGIN & SESSION STATE
-# ==========================================
 if 'username' not in st.session_state:
     st.session_state.username = None
 
-# HALAMAN LOGIN
 if st.session_state.username is None:
-    st.title("👋 Welcome to Expenses Tracker")
-    st.write("Login")
+    st.title("👋 Welcome to Tracker Keuangan")
+    st.write("Silahkan Login!")
     
     with st.form("login_form"):
         username_input = st.text_input("Masukkan Username (Tanpa spasi):")
@@ -36,19 +31,12 @@ if st.session_state.username is None:
         
         if submit_login:
             if username_input.strip() == "":
-                st.warning("Mohon di isi")
+                st.warning("Mohon diisi")
             else:
-                # Simpan nama ke sesi dengan format huruf kecil semua biar seragam
                 st.session_state.username = username_input.strip().lower()
                 st.rerun()
-                
-    st.stop() # Berhentiin eksekusi kode di bawah kalau belum login
+    st.stop()
 
-# ==========================================
-# 3. MAIN APP (Hanya jalan setelah login)
-# ==========================================
-
-# Header dengan tombol Logout
 col_title, col_logout = st.columns([3, 1])
 with col_title:
     st.title("💸 Tracker Keuangan")
@@ -58,7 +46,6 @@ with col_logout:
         st.rerun()
 st.caption(f"👤 Akun aktif: **{st.session_state.username}**")
 
-# Otentikasi
 @st.cache_resource
 def init_connection():
     scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
@@ -67,33 +54,26 @@ def init_connection():
 
 gc = init_connection()
 
-# Nama file dibikin unik per orang, contoh: Tracker_BCA_andi
 sheet_name = f"Tracker_BCA_{st.session_state.username}"
 
-# Cek atau Bikin Spreadsheet Baru Otomatis
 with st.spinner(f"Menyiapkan database untuk {st.session_state.username}..."):
     try:
         sh = gc.open(sheet_name)
     except gspread.exceptions.SpreadsheetNotFound:
-        # Kalau file belum ada, bot bakal bikin file baru di Drive
         sh = gc.create(sheet_name)
         worksheet = sh.sheet1
         
-        # Setup Header
         headers = ['Tanggal', 'Keterangan / Nama Barang', 'Jumlah', 'Pengeluaran (Rp)', '', 'TOTAL PEMASUKAN', 'TOTAL PENGELUARAN', 'SALDO TERSISA']
         worksheet.insert_row(headers, 1)
         
-        # Setup Rumus Awal
         worksheet.update_acell('F2', '0')
         worksheet.update_acell('G2', '=SUM(D2:D10000)')
         worksheet.update_acell('H2', '=F2-G2')
         
-        # Ubah settingan share biar URL-nya bisa diakses buat dilihat
         sh.share('', role='reader', type='anyone')
 
 worksheet = sh.sheet1
 
-# Dashboard Angka
 total_masuk_str = worksheet.acell('F2').value or '0'
 total_keluar_str = worksheet.acell('G2').value or '0'
 saldo_str = worksheet.acell('H2').value or '0'
@@ -103,11 +83,9 @@ col1.metric("Pemasukan", f"Rp {total_masuk_str}")
 col2.metric("Pengeluaran", f"Rp {total_keluar_str}")
 col3.metric("Saldo Tersisa", f"Rp {saldo_str}")
 
-# URL otomatis ngarah ke file masing-masing user
 st.link_button(f"📊 Lihat Spreadsheet {st.session_state.username}", sh.url, use_container_width=True)
 st.divider()
 
-# Tambah Pemasukan
 st.subheader("💰 Tambah Pemasukan")
 with st.form("form_pemasukan"):
     pemasukan_baru = st.number_input("Nominal Uang Masuk (Rp)", min_value=0, step=10000)
@@ -122,7 +100,6 @@ with st.form("form_pemasukan"):
 
 st.divider()
 
-# Input Manual
 st.subheader("📝 Input Pengeluaran Manual")
 with st.form("form_manual"):
     col_m1, col_m2 = st.columns([3, 1])
@@ -166,7 +143,6 @@ with st.form("form_manual"):
 
 st.divider()
 
-# Upload Struk
 st.subheader("🧾 Upload Struk Pengeluaran")
 uploaded_files = st.file_uploader("Pilih screenshot m-BCA atau e-Commerce", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True)
 
