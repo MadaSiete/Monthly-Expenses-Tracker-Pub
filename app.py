@@ -67,18 +67,18 @@ with st.spinner(f"Membuka database untuk {st.session_state.username}..."):
         st.stop()
         
     try:
-        # Bot nyari Tab/Worksheet sesuai nama orang yang login
         worksheet = sh.worksheet(st.session_state.username)
     except gspread.exceptions.WorksheetNotFound:
-        # Kalau orang ini baru pertama kali login, Bot bikinin Tab baru di dalem file Master lu
-        worksheet = sh.add_worksheet(title=st.session_state.username, rows=1000, cols=10)
-        
-        headers = ['Tanggal', 'Keterangan / Nama Barang', 'Jumlah', 'Pengeluaran (Rp)', '', 'TOTAL PEMASUKAN', 'TOTAL PENGELUARAN', 'SALDO TERSISA']
-        worksheet.insert_row(headers, 1)
-        
-        worksheet.update_acell('F2', '0')
-        worksheet.update_acell('G2', '=SUM(D2:D1000)')
-        worksheet.update_acell('H2', '=F2-G2')
+        # Bot bakal nyari tab 'Template' dan nge-duplikat semua desain, border, & rumusnya!
+        try:
+            template_sheet = sh.worksheet("Template")
+            worksheet = sh.duplicate_sheet(
+                source_sheet_id=template_sheet.id,
+                new_sheet_name=st.session_state.username
+            )
+        except gspread.exceptions.WorksheetNotFound:
+            st.error("❌ Tab 'Template' belum ada! Bikin dulu tab bernama Template di Google Sheets lu.")
+            st.stop()
 
 total_masuk_str = worksheet.acell('F2').value or '0'
 total_keluar_str = worksheet.acell('G2').value or '0'
