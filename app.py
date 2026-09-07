@@ -60,7 +60,8 @@ with st.spinner(f"Menyiapkan database untuk {st.session_state.username}..."):
     try:
         sh = gc.open(sheet_name)
     except gspread.exceptions.SpreadsheetNotFound:
-        sh = gc.create(sheet_name)
+        # Bot akan otomatis naruh file baru user ke dalam folder Drive lu
+        sh = gc.create(sheet_name, folder_id='1YBe1J_ycyPh8s0oLCBKXkbc2WWIrsNSU')
         worksheet = sh.sheet1
         
         headers = ['Tanggal', 'Keterangan / Nama Barang', 'Jumlah', 'Pengeluaran (Rp)', '', 'TOTAL PEMASUKAN', 'TOTAL PENGELUARAN', 'SALDO TERSISA']
