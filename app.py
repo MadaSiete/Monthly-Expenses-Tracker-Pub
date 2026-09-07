@@ -1,3 +1,4 @@
+import pandas as pd
 import streamlit as st
 import cv2
 import pytesseract
@@ -90,7 +91,27 @@ col2.metric("Pengeluaran", f"Rp {total_keluar_str}")
 col3.metric("Saldo Tersisa", f"Rp {saldo_str}")
 
 # URL ngarah ke File Master, jadi temen lu bisa ngecek juga datanya
-st.link_button(f"📊 Lihat Data Spreadsheet", sh.url, use_container_width=True)
+st.divider()
+st.subheader("📋 Riwayat Transaksi")
+
+with st.expander(f"Buka riwayat pengeluaran {st.session_state.username}"):
+    # Narik semua data mentah dari tab milik user yang lagi login
+    semua_data = worksheet.get_all_values()
+    
+    if len(semua_data) > 1:
+        # Bikin jadi tabel pandas (DataFrame)
+        df = pd.DataFrame(semua_data[1:], columns=semua_data[0])
+        
+        # Cuma ngambil 4 kolom pertama biar rapi (buang kolom saldo di kanan)
+        df_transaksi = df[['Tanggal', 'Keterangan / Nama Barang', 'Jumlah', 'Pengeluaran (Rp)']]
+        
+        # Bersihin baris yang kosong (kalau ada)
+        df_transaksi = df_transaksi[df_transaksi['Tanggal'].astype(bool) & (df_transaksi['Tanggal'] != '')]
+        
+        # Tampilkan tabel interaktif di dalam app
+        st.dataframe(df_transaksi, use_container_width=True, hide_index=True)
+    else:
+        st.info("Belum ada riwayat transaksi.")
 st.divider()
 
 st.subheader("💰 Tambah Pemasukan")
