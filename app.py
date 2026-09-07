@@ -60,18 +60,24 @@ with st.spinner(f"Menyiapkan database untuk {st.session_state.username}..."):
     try:
         sh = gc.open(sheet_name)
     except gspread.exceptions.SpreadsheetNotFound:
-        # Bot akan otomatis naruh file baru user ke dalam folder Drive lu
-        sh = gc.create(sheet_name, folder_id='1YBe1J_ycyPh8s0oLCBKXkbc2WWIrsNSU')
-        worksheet = sh.sheet1
-        
-        headers = ['Tanggal', 'Keterangan / Nama Barang', 'Jumlah', 'Pengeluaran (Rp)', '', 'TOTAL PEMASUKAN', 'TOTAL PENGELUARAN', 'SALDO TERSISA']
-        worksheet.insert_row(headers, 1)
-        
-        worksheet.update_acell('F2', '0')
-        worksheet.update_acell('G2', '=SUM(D2:D10000)')
-        worksheet.update_acell('H2', '=F2-G2')
-        
-        sh.share('', role='reader', type='anyone')
+        try:
+            # Kita tes bikin file tanpa masukin ke folder dulu untuk mencari tau letak errornya
+            sh = gc.create(sheet_name)
+            worksheet = sh.sheet1
+            
+            headers = ['Tanggal', 'Keterangan / Nama Barang', 'Jumlah', 'Pengeluaran (Rp)', '', 'TOTAL PEMASUKAN', 'TOTAL PENGELUARAN', 'SALDO TERSISA']
+            worksheet.insert_row(headers, 1)
+            
+            worksheet.update_acell('F2', '0')
+            worksheet.update_acell('G2', '=SUM(D2:D10000)')
+            worksheet.update_acell('H2', '=F2-G2')
+            
+            sh.share('', role='reader', type='anyone')
+            
+        except gspread.exceptions.APIError as e:
+            st.error("❌ Akses ditolak oleh Google! Ini pesan error aslinya:")
+            st.code(str(e))
+            st.stop()
 
 worksheet = sh.sheet1
 
