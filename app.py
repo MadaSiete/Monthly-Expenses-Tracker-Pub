@@ -7,7 +7,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
 
-st.set_page_config(page_title="Expenses Tracker App", page_icon="💸", layout="centered")
+st.set_page_config(page_title="BCA Tracker SaaS", page_icon="💸", layout="centered")
 
 hide_pull_to_refresh = """
     <style>
@@ -21,9 +21,10 @@ st.markdown(hide_pull_to_refresh, unsafe_allow_html=True)
 if 'username' not in st.session_state:
     st.session_state.username = None
 
+# --- HALAMAN LOGIN ---
 if st.session_state.username is None:
     st.title("👋 Welcome to Tracker Keuangan")
-    st.write("Silahkan Login!")
+    st.write("Tiap pengguna akan dapet Tab Database masing-masing secara otomatis!")
     
     with st.form("login_form"):
         username_input = st.text_input("Masukkan Username (Tanpa spasi):")
@@ -31,12 +32,13 @@ if st.session_state.username is None:
         
         if submit_login:
             if username_input.strip() == "":
-                st.warning("Mohon diisi")
+                st.warning("Nama gak boleh kosong bro!")
             else:
                 st.session_state.username = username_input.strip().lower()
                 st.rerun()
     st.stop()
 
+# --- MAIN APP ---
 col_title, col_logout = st.columns([3, 1])
 with col_title:
     st.title("💸 Tracker Keuangan")
@@ -54,32 +56,29 @@ def init_connection():
 
 gc = init_connection()
 
-sheet_name = f"Tracker_BCA_{st.session_state.username}"
+# Nama File Master yang lu bikin manual di Drive (pakai storage 5TB lu)
+MASTER_SHEET_NAME = "Tracker Master SaaS"
 
-with st.spinner(f"Menyiapkan database untuk {st.session_state.username}..."):
+with st.spinner(f"Membuka database untuk {st.session_state.username}..."):
     try:
-        sh = gc.open(sheet_name)
+        sh = gc.open(MASTER_SHEET_NAME)
     except gspread.exceptions.SpreadsheetNotFound:
-        try:
-            # Kita tes bikin file tanpa masukin ke folder dulu untuk mencari tau letak errornya
-            sh = gc.create(sheet_name)
-            worksheet = sh.sheet1
-            
-            headers = ['Tanggal', 'Keterangan / Nama Barang', 'Jumlah', 'Pengeluaran (Rp)', '', 'TOTAL PEMASUKAN', 'TOTAL PENGELUARAN', 'SALDO TERSISA']
-            worksheet.insert_row(headers, 1)
-            
-            worksheet.update_acell('F2', '0')
-            worksheet.update_acell('G2', '=SUM(D2:D10000)')
-            worksheet.update_acell('H2', '=F2-G2')
-            
-            sh.share('', role='reader', type='anyone')
-            
-        except gspread.exceptions.APIError as e:
-            st.error("❌ Akses ditolak oleh Google! Ini pesan error aslinya:")
-            st.code(str(e))
-            st.stop()
-
-worksheet = sh.sheet1
+        st.error(f"❌ File '{MASTER_SHEET_NAME}' belum ada atau lu belum nge-share filenya ke email bot sebagai Editor!")
+        st.stop()
+        
+    try:
+        # Bot nyari Tab/Worksheet sesuai nama orang yang login
+        worksheet = sh.worksheet(st.session_state.username)
+    except gspread.exceptions.WorksheetNotFound:
+        # Kalau orang ini baru pertama kali login, Bot bikinin Tab baru di dalem file Master lu
+        worksheet = sh.add_worksheet(title=st.session_state.username, rows=1000, cols=10)
+        
+        headers = ['Tanggal', 'Keterangan / Nama Barang', 'Jumlah', 'Pengeluaran (Rp)', '', 'TOTAL PEMASUKAN', 'TOTAL PENGELUARAN', 'SALDO TERSISA']
+        worksheet.insert_row(headers, 1)
+        
+        worksheet.update_acell('F2', '0')
+        worksheet.update_acell('G2', '=SUM(D2:D1000)')
+        worksheet.update_acell('H2', '=F2-G2')
 
 total_masuk_str = worksheet.acell('F2').value or '0'
 total_keluar_str = worksheet.acell('G2').value or '0'
@@ -90,7 +89,8 @@ col1.metric("Pemasukan", f"Rp {total_masuk_str}")
 col2.metric("Pengeluaran", f"Rp {total_keluar_str}")
 col3.metric("Saldo Tersisa", f"Rp {saldo_str}")
 
-st.link_button(f"📊 Lihat Spreadsheet {st.session_state.username}", sh.url, use_container_width=True)
+# URL ngarah ke File Master, jadi temen lu bisa ngecek juga datanya
+st.link_button(f"📊 Lihat Data Spreadsheet", sh.url, use_container_width=True)
 st.divider()
 
 st.subheader("💰 Tambah Pemasukan")
