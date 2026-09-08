@@ -1,6 +1,6 @@
 streamlit
-opencv-python-headless
-pytesseract
 gspread
 google-auth
 pandas
+google-generativeai
+pillow
