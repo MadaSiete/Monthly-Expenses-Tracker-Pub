@@ -223,13 +223,22 @@ with st.form("form_manual"):
             st.warning("Please enter a valid description and unit price!")
 
 # ==========================================
-# UPLOAD RECEIPT AI (Fully Auto for all types)
+# UPLOAD RECEIPT AI (Auto & Hybrid Override)
 # ==========================================
 st.divider()
 st.subheader("🤖 Upload Receipt")
 st.write("Upload M-Banking, E-Commerce, or Shopping Receipts.")
 
 with st.form("form_ai_otomatis"):
+    st.caption("Optional: Fill in Custom Description if your receipt (like QRIS) doesn't have item details.")
+    
+    # Kolom opsional buat numpuk (override) hasil AI
+    col_ai1, col_ai2 = st.columns([3, 1])
+    with col_ai1:
+        custom_name = st.text_input("Custom Description (Optional)", placeholder="e.g., Nasi Goreng")
+    with col_ai2:
+        custom_qty = st.number_input("Qty", min_value=1, value=1)
+        
     uploaded_file = st.file_uploader("Upload receipt here", type=['png', 'jpg', 'jpeg'])
     submit_ai = st.form_submit_button("Process Receipt", use_container_width=True)
 
@@ -241,28 +250,25 @@ with st.form("form_ai_otomatis"):
                 try:
                     image = Image.open(uploaded_file)
                     
+                    # Prompt AI difokuskan buat nyari nama toko/merchant dan Total Harga
                     prompt = """
-                    Analyze this receipt, e-commerce invoice, or M-Banking transfer proof image. 
+                    Analyze this receipt, e-commerce invoice, or M-Banking/QRIS transfer proof image. 
                     Your task is to extract the main data into a pure JSON format without markdown text (no ```json prefix).
                     
                     Extraction rules:
                     1. "tanggal": Format DD/MM/YYYY. If not found, leave blank "".
                     2. "keterangan": 
-                       - If M-Banking: Write the transfer recipient / institution name.
-                       - If E-commerce (1 type of item): Write the item name briefly.
-                       - If Bulk Shopping Receipt: Write the store name only (e.g., "Grocery at Walmart", "Dinner at McD").
-                    3. "jumlah": 
-                       - If a specific item has a quantity, write the number (e.g., 2, 3).
-                       - If it's a transfer, top-up, or bulk shopping receipt, write 1.
-                    4. "harga_satuan": 
+                       - If M-Banking/QRIS: Write the transfer recipient / institution name.
+                       - If E-commerce: Write the item name briefly.
+                       - If Bulk Shopping: Write the store name only (e.g., "Indomaret", "McD").
+                    3. "harga_satuan": 
                        - Price per 1 pcs of item, OR
-                       - Grand Total (if it's a bulk shopping receipt / m-banking transfer). Pure number without dots/commas/currency.
+                       - Grand Total (if it's a bulk shopping receipt / QRIS / m-banking transfer). Pure number without dots/commas/currency.
 
                     MANDATORY JSON format to return:
                     {
                         "tanggal": "25/12/2023",
-                        "keterangan": "Topup Gopay / Fried Rice",
-                        "jumlah": 1,
+                        "keterangan": "Topup Gopay",
                         "harga_satuan": 50000
                     }
                     """
@@ -274,19 +280,27 @@ with st.form("form_ai_otomatis"):
                     if not tanggal:
                         tanggal = (datetime.utcnow() + timedelta(hours=7)).strftime("%d/%m/%Y")
                         
+                    # === LOGIKA OVERRIDE (TIMPA NAMA BARANG) ===
+                    # Kalau lu ngetik nama di form, pakai nama lu. Kalau kosong, pakai hasil bacaan AI.
                     nama_barang_ai = data.get("keterangan", "Expense (AI)")
-                    jumlah_ai = int(data.get("jumlah", 1)) 
+                    final_nama = custom_name.strip() if custom_name.strip() != "" else nama_barang_ai
+                    
+                    # Qty ambil murni dari inputan form lu (default 1)
+                    final_qty = custom_qty 
                     harga_satuan = int(data.get("harga_satuan", 0))
                     
                     if harga_satuan > 0:
-                        harga_akhir = harga_satuan * jumlah_ai
+                        # LOGIKA MATEMATIKA: Harga Akhir = Harga Satuan (dari AI) x Qty (dari Form)
+                        harga_akhir = harga_satuan * final_qty
                         
+                        # Simpan ke Google Sheets
                         baris_baru = len(list(filter(None, worksheet.col_values(1)))) + 1
                         worksheet.update(
-                            values=[[tanggal, nama_barang_ai, str(jumlah_ai), harga_akhir]], 
+                            values=[[tanggal, final_nama, str(final_qty), harga_akhir]], 
                             range_name=f'A{baris_baru}:D{baris_baru}'
                         )
                         
+                        # Update Saldo Dashboard
                         total_keluar_now = int(str(total_keluar_str).replace('.', '').replace(',', '')) if total_keluar_str else 0
                         total_masuk_now = int(str(total_masuk_str).replace('.', '').replace(',', '')) if total_masuk_str else 0
                         
@@ -295,7 +309,7 @@ with st.form("form_ai_otomatis"):
                         
                         worksheet.update(values=[[pengeluaran_baru, saldo_baru]], range_name='G2:H2')
                         
-                        st.success(f"✅ Receipt found: **{nama_barang_ai}** | Rp {harga_satuan:,} x {jumlah_ai} (Qty). Total: Rp {harga_akhir:,}")
+                        st.success(f"✅ Receipt processed: **{final_nama}** | Rp {harga_satuan:,} x {final_qty} (Qty). Total: Rp {harga_akhir:,}")
                         st.rerun()
                     else:
                         st.error("❌ The receipt could not be read. Please ensure the receipt image is clear and readable.")
