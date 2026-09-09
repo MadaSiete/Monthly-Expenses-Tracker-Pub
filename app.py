@@ -15,6 +15,8 @@ st.set_page_config(page_title="Expenses Tracker SaaS", page_icon="💸", layout=
 hide_pull_to_refresh = """
     <style>
     html, body, .stApp { overscroll-behavior: none !important; }
+    /* Hide default Streamlit sidebar button */
+    [data-testid="stSidebarNav"], [data-testid="collapsedControl"] { display: none; }
     div[data-testid="stForm"] {
         border-radius: 15px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
@@ -23,8 +25,12 @@ hide_pull_to_refresh = """
 """
 st.markdown(hide_pull_to_refresh, unsafe_allow_html=True)
 
+# Session States
 if 'username' not in st.session_state:
     st.session_state.username = None
+
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = 'home'
 
 # ==========================================
 # SYSTEM CONNECTION
@@ -80,6 +86,7 @@ if st.session_state.username is None:
                         
                         if not user_match.empty:
                             st.session_state.username = login_user.lower()
+                            st.session_state.current_page = 'home'
                             st.rerun()
                         else:
                             st.error("❌ Invalid Username or Password!")
@@ -116,7 +123,7 @@ if st.session_state.username is None:
 genai.configure(api_key=st.secrets["gemini_api_key"])
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-with st.spinner("Preparing database..."):
+with st.spinner("Loading data..."):
     sh = gc.open(MASTER_SHEET_NAME)
     try:
         worksheet = sh.worksheet(st.session_state.username)
@@ -136,39 +143,62 @@ total_masuk_str = worksheet.acell('F2').value or '0'
 total_keluar_str = worksheet.acell('G2').value or '0'
 saldo_str = worksheet.acell('H2').value or '0'
 
-# ==========================================
-# SIDEBAR NAVIGATION
-# ==========================================
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to:", ["🏠 Home (Dashboard)", "💰 Add Income", "📝 Manual Expense", "🤖 AI Receipt Scanner", "📋 Transaction History"])
-
-st.sidebar.divider()
-st.sidebar.caption(f"👤 Logged in as: **{st.session_state.username}**")
-if st.sidebar.button("🚪 Logout", use_container_width=True):
-    st.session_state.username = None
-    st.rerun()
-
 
 # ==========================================
-# PAGE 1: HOME (DASHBOARD)
+# PAGE 1: HOMESCREEN (MAIN MENU)
 # ==========================================
-if page == "🏠 Home (Dashboard)":
-    st.title("💸 Financial Dashboard")
-    st.write("Welcome to your summary.")
-    
+if st.session_state.current_page == 'home':
+    st.title("💸 Expenses Tracker")
+    st.caption(f"👤 Logged in as: **{st.session_state.username}**")
+
+    # Metrics Card
     col1, col2, col3 = st.columns(3)
     col1.metric("Income", f"Rp {total_masuk_str}")
     col2.metric("Expenses", f"Rp {total_keluar_str}")
     col3.metric("Balance", f"Rp {saldo_str}")
-    
-    st.info("👈 Use the sidebar to navigate through features.")
+
+    st.divider()
+    st.subheader("📌 Main Menu")
+
+    # Action Buttons Grid
+    btn_col1, btn_col2 = st.columns(2)
+    with btn_col1:
+        if st.button("💰 Add Income", use_container_width=True):
+            st.session_state.current_page = 'income'
+            st.rerun()
+            
+        if st.button("📝 Manual Expense", use_container_width=True):
+            st.session_state.current_page = 'manual_expense'
+            st.rerun()
+
+    with btn_col2:
+        if st.button("🤖 AI Receipt Scanner", use_container_width=True):
+            st.session_state.current_page = 'ai_scanner'
+            st.rerun()
+            
+        if st.button("📋 Transaction History", use_container_width=True):
+            st.session_state.current_page = 'history'
+            st.rerun()
+
+    st.divider()
+    if st.button("🚪 Logout", use_container_width=True):
+        st.session_state.username = None
+        st.session_state.current_page = 'home'
+        st.rerun()
 
 
 # ==========================================
 # PAGE 2: ADD INCOME
 # ==========================================
-elif page == "💰 Add Income":
+elif st.session_state.current_page == 'income':
+    # Navigation Bar
+    if st.button("🏠 Back to Home", use_container_width=True):
+        st.session_state.current_page = 'home'
+        st.rerun()
+
+    st.divider()
     st.title("💰 Add Income")
+    
     with st.form("form_pemasukan"):
         pemasukan_baru = st.number_input("Income Amount (Rp)", min_value=0, step=10000)
         if st.form_submit_button("Update Income", use_container_width=True) and pemasukan_baru > 0:
@@ -181,8 +211,21 @@ elif page == "💰 Add Income":
 # ==========================================
 # PAGE 3: MANUAL EXPENSE
 # ==========================================
-elif page == "📝 Manual Expense":
-    st.title("📝 Add Manual Expense")
+elif st.session_state.current_page == 'manual_expense':
+    # Top Navigation Row (Home + Transaction History)
+    nav_col1, nav_col2 = st.columns(2)
+    with nav_col1:
+        if st.button("🏠 Home", use_container_width=True):
+            st.session_state.current_page = 'home'
+            st.rerun()
+    with nav_col2:
+        if st.button("📋 View History", use_container_width=True):
+            st.session_state.current_page = 'history'
+            st.rerun()
+
+    st.divider()
+    st.title("📝 Manual Expense")
+
     with st.form("form_manual"):
         col_m1, col_m2 = st.columns([3, 1])
         with col_m1:
@@ -220,12 +263,24 @@ elif page == "📝 Manual Expense":
 
 
 # ==========================================
-# PAGE 4: UPLOAD RECEIPT AI 
+# PAGE 4: AI RECEIPT SCANNER
 # ==========================================
-elif page == "🤖 AI Receipt Scanner":
-    st.title("🤖 Upload Receipt")
+elif st.session_state.current_page == 'ai_scanner':
+    # Top Navigation Row (Home + Transaction History)
+    nav_col1, nav_col2 = st.columns(2)
+    with nav_col1:
+        if st.button("🏠 Home", use_container_width=True):
+            st.session_state.current_page = 'home'
+            st.rerun()
+    with nav_col2:
+        if st.button("📋 View History", use_container_width=True):
+            st.session_state.current_page = 'history'
+            st.rerun()
+
+    st.divider()
+    st.title("🤖 AI Receipt Scanner")
     st.write("Upload M-Banking, E-Commerce, or Shopping Receipts.")
-    
+
     with st.form("form_ai_otomatis"):
         st.caption("Optional: Fill in Custom Description if your receipt (like QRIS) doesn't have item details.")
         
@@ -237,7 +292,7 @@ elif page == "🤖 AI Receipt Scanner":
             
         uploaded_file = st.file_uploader("Upload receipt here", type=['png', 'jpg', 'jpeg'])
         submit_ai = st.form_submit_button("Process Receipt", use_container_width=True)
-    
+
         if submit_ai:
             if uploaded_file is None:
                 st.warning("⚠️ Please upload your receipt first!")
@@ -259,7 +314,7 @@ elif page == "🤖 AI Receipt Scanner":
                         3. "harga_satuan": 
                            - Price per 1 pcs of item, OR
                            - Grand Total (if it's a bulk shopping receipt / QRIS / m-banking transfer). Pure number without dots/commas/currency.
-    
+
                         MANDATORY JSON format to return:
                         {
                             "tanggal": "25/12/2023",
@@ -277,7 +332,6 @@ elif page == "🤖 AI Receipt Scanner":
                             
                         nama_barang_ai = data.get("keterangan", "Expense (AI)")
                         final_nama = custom_name.strip() if custom_name.strip() != "" else nama_barang_ai
-                        
                         final_qty = custom_qty 
                         harga_satuan = int(data.get("harga_satuan", 0))
                         
@@ -310,8 +364,15 @@ elif page == "🤖 AI Receipt Scanner":
 # ==========================================
 # PAGE 5: TRANSACTION HISTORY
 # ==========================================
-elif page == "📋 Transaction History":
+elif st.session_state.current_page == 'history':
+    # Navigation Bar
+    if st.button("🏠 Back to Home", use_container_width=True):
+        st.session_state.current_page = 'home'
+        st.rerun()
+
+    st.divider()
     st.title("📋 Transaction History")
+    
     semua_data = worksheet.get_all_values()
     if len(semua_data) > 1:
         df = pd.DataFrame(semua_data[1:], columns=semua_data[0])
