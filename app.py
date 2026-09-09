@@ -16,9 +16,7 @@ st.set_page_config(page_title="Expenses Tracker Global", page_icon="💸", layou
 elegant_css = """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
-
     html, body, [class*="css"]  { font-family: 'Inter', sans-serif; }
-
     .stApp {
         background: linear-gradient(rgba(15, 32, 39, 0.75), rgba(32, 58, 67, 0.75)), 
                     url("https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop");
@@ -27,15 +25,12 @@ elegant_css = """
         background-attachment: fixed;
         color: #e0e0e0;
     }
-    
     .block-container {
         max-width: 850px !important;
         padding-top: 3rem !important;
         padding-bottom: 3rem !important;
     }
-
     [data-testid="stHeader"] { background: transparent !important; }
-
     div[data-testid="stForm"], div[data-testid="metric-container"], .stExpander, div[data-testid="stVerticalBlock"] > div > div > div > div.stAlert {
         background: rgba(255, 255, 255, 0.05) !important;
         backdrop-filter: blur(16px) saturate(180%);
@@ -46,12 +41,10 @@ elegant_css = """
         padding: 20px;
         transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
-    
     div[data-testid="metric-container"]:hover {
         transform: translateY(-5px);
         box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.6);
     }
-
     div[data-testid="metric-container"] label {
         color: #b0bec5 !important;
         font-weight: 400;
@@ -65,7 +58,6 @@ elegant_css = """
         text-overflow: clip !important; 
         overflow: visible !important;
     }
-
     div.stButton > button, div[data-testid="stFormSubmitButton"] > button {
         background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%) !important;
         color: white !important;
@@ -77,12 +69,10 @@ elegant_css = """
         transition: all 0.3s ease;
         box-shadow: 0 4px 15px rgba(0, 242, 254, 0.3) !important;
     }
-    
     div.stButton > button:hover, div[data-testid="stFormSubmitButton"] > button:hover {
         transform: scale(1.02);
         box-shadow: 0 6px 20px rgba(0, 242, 254, 0.6) !important;
     }
-
     div[data-baseweb="input"], div[data-baseweb="base-input"], div[data-baseweb="select"] > div {
         background-color: rgba(255, 255, 255, 0.05) !important;
         border: 1px solid rgba(255, 255, 255, 0.15) !important;
@@ -97,7 +87,6 @@ elegant_css = """
         border-color: #00f2fe !important;
         box-shadow: 0 0 10px rgba(0, 242, 254, 0.3) !important;
     }
-
     [data-testid="stTabs"] [data-baseweb="tab-list"] { gap: 10px; background-color: transparent !important; }
     [data-testid="stTabs"] [data-baseweb="tab-panel"] {
         background: rgba(255, 255, 255, 0.05) !important;
@@ -107,7 +96,6 @@ elegant_css = """
         border-radius: 0 0 20px 20px;
         padding: 20px;
     }
-
     [data-testid="stTable"] {
         background: rgba(255, 255, 255, 0.05) !important;
         backdrop-filter: blur(16px);
@@ -118,7 +106,6 @@ elegant_css = """
     [data-testid="stTable"] th { background-color: rgba(0, 242, 254, 0.1) !important; color: #00f2fe !important; border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important; }
     [data-testid="stTable"] td { background: transparent !important; border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important; }
     [data-testid="stTable"] th:first-child, [data-testid="stTable"] td:first-child { display: none; }
-
     html, body { overscroll-behavior: none !important; }
     [data-testid="stSidebarNav"], [data-testid="collapsedControl"] { display: none; }
     footer {visibility: hidden;}
@@ -134,7 +121,6 @@ if 'username' not in st.session_state:
 if 'current_page' not in st.session_state:
     st.session_state.current_page = 'home'
 
-# Daftar Mata Uang Global
 CURRENCY_DATA = {
     "IDR": "Rp", "USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", 
     "SGD": "S$", "MYR": "RM", "AUD": "A$", "CAD": "C$"
@@ -144,6 +130,19 @@ if 'currency' not in st.session_state:
     st.session_state.currency = 'IDR'
 if 'currency_symbol' not in st.session_state:
     st.session_state.currency_symbol = 'Rp'
+
+# Mengambil Kurs dengan Caching (1 Jam)
+@st.cache_data(ttl=3600)
+def fetch_exchange_rate(base, target):
+    if base == target:
+        return 1.0
+    try:
+        response = requests.get(f"https://api.exchangerate-api.com/v4/latest/{base}")
+        if response.status_code == 200:
+            return response.json()['rates'].get(target, 1.0)
+    except:
+        pass
+    return 1.0
 
 # ==========================================
 # SYSTEM CONNECTION
@@ -248,12 +247,26 @@ with st.spinner("Loading data..."):
             st.error("❌ 'Template' tab is missing.")
             st.stop()
 
-# FETCH BALANCE DATA
+# Tarik Nilai DB Murni (Database Selalu Dalam IDR)
 total_masuk_str = worksheet.acell('F2').value or '0'
 total_keluar_str = worksheet.acell('G2').value or '0'
 saldo_str = worksheet.acell('H2').value or '0'
 
+# Konversi string format ke Float
+raw_income = float(str(total_masuk_str).replace('.', '').replace(',', '')) if total_masuk_str else 0.0
+raw_expense = float(str(total_keluar_str).replace('.', '').replace(',', '')) if total_keluar_str else 0.0
+raw_balance = float(str(saldo_str).replace('.', '').replace(',', '')) if saldo_str else 0.0
+
+# Ambil Kurs Layar (IDR ke Mata Uang Pilihan)
+rate_to_display = fetch_exchange_rate('IDR', st.session_state.currency)
 sym = st.session_state.currency_symbol
+
+disp_income = raw_income * rate_to_display
+disp_expense = raw_expense * rate_to_display
+disp_balance = raw_balance * rate_to_display
+
+def format_curr(value):
+    return f"{value:,.0f}" if st.session_state.currency in ['IDR', 'JPY'] else f"{value:,.2f}"
 
 # ==========================================
 # PAGE 1: HOMESCREEN (MAIN MENU)
@@ -264,7 +277,6 @@ if st.session_state.current_page == 'home':
         st.title("💸 Expenses Tracker")
         st.caption(f"👤 Logged in as: **{st.session_state.username}**")
     with col_t2:
-        # Currency Selector UI
         selected_curr = st.selectbox(
             "Currency", 
             options=list(CURRENCY_DATA.keys()), 
@@ -276,9 +288,9 @@ if st.session_state.current_page == 'home':
             st.rerun()
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Income", f"{sym} {total_masuk_str}")
-    col2.metric("Expenses", f"{sym} {total_keluar_str}")
-    col3.metric("Balance", f"{sym} {saldo_str}")
+    col1.metric("Income", f"{sym} {format_curr(disp_income)}")
+    col2.metric("Expenses", f"{sym} {format_curr(disp_expense)}")
+    col3.metric("Balance", f"{sym} {format_curr(disp_balance)}")
 
     st.divider()
     st.subheader("📌 Main Menu")
@@ -321,9 +333,12 @@ elif st.session_state.current_page == 'income':
     with st.form("form_pemasukan"):
         pemasukan_baru = st.number_input(f"Income Amount ({sym})", min_value=0.0, step=10.0)
         if st.form_submit_button("Update Income", use_container_width=True) and pemasukan_baru > 0:
-            total_saat_ini = float(str(total_masuk_str).replace('.', '').replace(',', '')) if total_masuk_str else 0
-            worksheet.update_acell('F2', total_saat_ini + pemasukan_baru)
-            st.success("Successfully added!")
+            # Konversi Input (USD/EUR dll) kembali ke IDR untuk Database
+            rate_to_db = fetch_exchange_rate(st.session_state.currency, 'IDR')
+            income_in_idr = pemasukan_baru * rate_to_db
+            
+            worksheet.update_acell('F2', raw_income + income_in_idr)
+            st.success(f"Successfully added! (Saved to database as Rp {income_in_idr:,.0f})")
             st.rerun()
 
 # ==========================================
@@ -355,23 +370,24 @@ elif st.session_state.current_page == 'manual_expense':
         if st.form_submit_button("Save Expense", use_container_width=True):
             if nama_barang_manual and nominal_manual > 0:
                 with st.spinner("Storing..."):
-                    total_pengeluaran = float(nominal_manual) * jumlah_manual
+                    # Konversi Pengeluaran kembali ke IDR
+                    rate_to_db = fetch_exchange_rate(st.session_state.currency, 'IDR')
+                    total_pengeluaran_display = nominal_manual * jumlah_manual
+                    total_pengeluaran_idr = total_pengeluaran_display * rate_to_db
+                    
                     tanggal_manual = (datetime.utcnow() + timedelta(hours=7)).strftime("%d/%m/%Y")
                     baris_baru = len(list(filter(None, worksheet.col_values(1)))) + 1
                     
                     worksheet.update(
-                        values=[[tanggal_manual, nama_barang_manual, str(jumlah_manual), total_pengeluaran]], 
+                        values=[[tanggal_manual, nama_barang_manual, str(jumlah_manual), total_pengeluaran_idr]], 
                         range_name=f'A{baris_baru}:D{baris_baru}'
                     )
                     
-                    total_keluar_now = float(str(total_keluar_str).replace('.', '').replace(',', '')) if total_keluar_str else 0
-                    total_masuk_now = float(str(total_masuk_str).replace('.', '').replace(',', '')) if total_masuk_str else 0
-                    
-                    pengeluaran_baru = total_keluar_now + total_pengeluaran
-                    saldo_baru = total_masuk_now - pengeluaran_baru
+                    pengeluaran_baru = raw_expense + total_pengeluaran_idr
+                    saldo_baru = raw_income - pengeluaran_baru
                     
                     worksheet.update(values=[[pengeluaran_baru, saldo_baru]], range_name='G2:H2')
-                    st.success(f"✅ Success! Total: {sym} {total_pengeluaran:,}")
+                    st.success(f"✅ Success! Total: {sym} {format_curr(total_pengeluaran_display)}")
                     st.rerun()
             else:
                 st.warning("Please enter a valid description and unit price!")
@@ -411,13 +427,11 @@ elif st.session_state.current_page == 'ai_scanner':
                 with st.spinner("Analyzing with AI..."):
                     try:
                         image = Image.open(uploaded_file)
-                        prompt = """
-                        Analyze this receipt, e-commerce invoice, or M-Banking/QRIS transfer proof image. 
-                        Your task is to extract the main data into a pure JSON format without markdown text (no ```json prefix).
-                        
-                        1. "tanggal": Format DD/MM/YYYY. If not found, leave blank "".
+                        prompt = f"""
+                        Analyze this receipt. Extract the main data into a pure JSON format without markdown text.
+                        1. "tanggal": Format DD/MM/YYYY.
                         2. "keterangan": Store name, item name, or transfer recipient.
-                        3. "harga_satuan": Price per 1 pcs of item, OR Grand Total. Pure number (can include decimal). Do not include currency symbols.
+                        3. "harga_satuan": Price per 1 pcs of item, OR Grand Total. Ensure the value extracted corresponds to {st.session_state.currency} logic if a currency is present. Pure number only.
                         """
                         response = model.generate_content([prompt, image])
                         res_text = response.text.replace("```json", "").replace("```", "").strip()
@@ -430,24 +444,27 @@ elif st.session_state.current_page == 'ai_scanner':
                         nama_barang_ai = data.get("keterangan", "Expense (AI)")
                         final_nama = custom_name.strip() if custom_name.strip() != "" else nama_barang_ai
                         final_qty = custom_qty 
-                        harga_satuan = float(data.get("harga_satuan", 0))
                         
-                        if harga_satuan > 0:
-                            harga_akhir = harga_satuan * final_qty
+                        # Harga dari AI (dianggap sesuai mata uang yang dipilih di layar)
+                        harga_satuan_display = float(data.get("harga_satuan", 0))
+                        
+                        if harga_satuan_display > 0:
+                            # Konversi ke IDR untuk DB
+                            rate_to_db = fetch_exchange_rate(st.session_state.currency, 'IDR')
+                            harga_akhir_display = harga_satuan_display * final_qty
+                            harga_akhir_idr = harga_akhir_display * rate_to_db
+                            
                             baris_baru = len(list(filter(None, worksheet.col_values(1)))) + 1
                             worksheet.update(
-                                values=[[tanggal, final_nama, str(final_qty), harga_akhir]], 
+                                values=[[tanggal, final_nama, str(final_qty), harga_akhir_idr]], 
                                 range_name=f'A{baris_baru}:D{baris_baru}'
                             )
                             
-                            total_keluar_now = float(str(total_keluar_str).replace('.', '').replace(',', '')) if total_keluar_str else 0
-                            total_masuk_now = float(str(total_masuk_str).replace('.', '').replace(',', '')) if total_masuk_str else 0
-                            
-                            pengeluaran_baru = total_keluar_now + harga_akhir
-                            saldo_baru = total_masuk_now - pengeluaran_baru
+                            pengeluaran_baru = raw_expense + harga_akhir_idr
+                            saldo_baru = raw_income - pengeluaran_baru
                             
                             worksheet.update(values=[[pengeluaran_baru, saldo_baru]], range_name='G2:H2')
-                            st.success(f"✅ Processed: **{final_nama}** | {sym} {harga_satuan:,} x {final_qty}. Total: {sym} {harga_akhir:,}")
+                            st.success(f"✅ Processed: **{final_nama}** | Total: {sym} {format_curr(harga_akhir_display)}")
                             st.rerun()
                         else:
                             st.error("❌ The receipt could not be read.")
@@ -468,11 +485,21 @@ elif st.session_state.current_page == 'history':
     semua_data = worksheet.get_all_values()
     if len(semua_data) > 1:
         df = pd.DataFrame(semua_data[1:], columns=semua_data[0])
-        df_transaksi = df[['Tanggal', 'Keterangan / Nama Barang', 'Jumlah', 'Pengeluaran (Rp)']]
+        df_transaksi = df[['Tanggal', 'Keterangan / Nama Barang', 'Jumlah', 'Pengeluaran (Rp)']].copy()
         df_transaksi = df_transaksi[df_transaksi['Tanggal'].astype(bool) & (df_transaksi['Tanggal'] != '')]
         
-        df_transaksi.columns = ['Date', 'Description', 'Qty', f'Total Expense ({sym})']
-        st.table(df_transaksi)
+        # Ekstrak string IDR menjadi Float, lalu konversi ke mata uang layar
+        df_transaksi['Total Expense'] = pd.to_numeric(
+            df_transaksi['Pengeluaran (Rp)'].astype(str).str.replace('.', '', regex=False).str.replace(',', '', regex=False), 
+            errors='coerce'
+        ).fillna(0) * rate_to_display
+        
+        # Format string untuk tampilan tabel
+        df_transaksi['Total Expense'] = df_transaksi['Total Expense'].apply(lambda x: f"{sym} {format_curr(x)}")
+        
+        df_tampil = df_transaksi[['Tanggal', 'Keterangan / Nama Barang', 'Jumlah', 'Total Expense']]
+        df_tampil.columns = ['Date', 'Description', 'Qty', f'Total Expense ({sym})']
+        st.table(df_tampil)
     else:
         st.info("No transaction history yet.")
 
@@ -500,8 +527,7 @@ elif st.session_state.current_page == 'exchange':
         if st.form_submit_button("Convert Currency", use_container_width=True):
             with st.spinner("Fetching live rates..."):
                 try:
-                    # Menggunakan Public API gratis tanpa key
-                    url = f"[https://api.exchangerate-api.com/v4/latest/](https://api.exchangerate-api.com/v4/latest/){base_currency}"
+                    url = f"https://api.exchangerate-api.com/v4/latest/{base_currency}"
                     response = requests.get(url)
                     
                     if response.status_code == 200:
