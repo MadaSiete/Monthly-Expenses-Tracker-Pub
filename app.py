@@ -15,7 +15,6 @@ st.set_page_config(page_title="Expenses Tracker SaaS", page_icon="💸", layout=
 hide_pull_to_refresh = """
     <style>
     html, body, .stApp { overscroll-behavior: none !important; }
-    /* Enhance login form UI */
     div[data-testid="stForm"] {
         border-radius: 15px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
@@ -46,7 +45,6 @@ if st.session_state.username is None:
     st.markdown("<h1 style='text-align: center; color: #1E88E5;'>💸 Expenses Tracker SaaS</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; margin-bottom: 30px;'>Please login or create an account</p>", unsafe_allow_html=True)
     
-    # Connect to 'Users' Tab in Master Sheet
     try:
         sh = gc.open(MASTER_SHEET_NAME)
     except gspread.exceptions.SpreadsheetNotFound:
@@ -56,11 +54,9 @@ if st.session_state.username is None:
     try:
         users_sheet = sh.worksheet("Users")
     except gspread.exceptions.WorksheetNotFound:
-        # Auto-create Users tab if missing
         users_sheet = sh.add_worksheet(title="Users", rows=1000, cols=2)
         users_sheet.insert_row(["Username", "Password"], 1)
 
-    # Login & Register Tabs
     tab_login, tab_register = st.tabs(["🔑 LOGIN", "📝 REGISTER"])
     
     # --- LOGIN TAB ---
@@ -80,8 +76,6 @@ if st.session_state.username is None:
                     else:
                         df_users = pd.DataFrame(users_data)
                         df_users.columns = df_users.columns.str.strip()
-                        
-                        # Verify credentials
                         user_match = df_users[(df_users['Username'].astype(str).str.lower() == login_user.lower()) & (df_users['Password'].astype(str) == login_pass)]
                         
                         if not user_match.empty:
@@ -111,29 +105,18 @@ if st.session_state.username is None:
                             st.error("❌ Username already taken. Please choose another one!")
                             st.stop()
                     
-                    # Append new account
                     users_sheet.append_row([reg_user.lower(), reg_pass])
                     st.success("✅ Account created successfully! Please switch to the LOGIN tab.")
 
     st.stop()
 
 # ==========================================
-# MAIN APP (POST-LOGIN)
+# APP INITIALIZATION (POST-LOGIN)
 # ==========================================
 genai.configure(api_key=st.secrets["gemini_api_key"])
-model = genai.GenerativeModel('gemini-3.5-flash')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-col_title, col_logout = st.columns([3, 1])
-with col_title:
-    st.title("💸 Financial Dashboard")
-with col_logout:
-    if st.button("🚪 Logout"):
-        st.session_state.username = None
-        st.rerun()
-st.caption(f"👤 Logged in as: **{st.session_state.username}**")
-
-# Open user-specific database
-with st.spinner("Preparing dashboard..."):
+with st.spinner("Preparing database..."):
     sh = gc.open(MASTER_SHEET_NAME)
     try:
         worksheet = sh.worksheet(st.session_state.username)
@@ -153,166 +136,189 @@ total_masuk_str = worksheet.acell('F2').value or '0'
 total_keluar_str = worksheet.acell('G2').value or '0'
 saldo_str = worksheet.acell('H2').value or '0'
 
-col1, col2, col3 = st.columns(3)
-col1.metric("Income", f"Rp {total_masuk_str}")
-col2.metric("Expenses", f"Rp {total_keluar_str}")
-col3.metric("Balance", f"Rp {saldo_str}")
+# ==========================================
+# SIDEBAR NAVIGATION
+# ==========================================
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to:", ["🏠 Home (Dashboard)", "💰 Add Income", "📝 Manual Expense", "🤖 AI Receipt Scanner", "📋 Transaction History"])
 
-# TRANSACTION HISTORY (PANDAS)
-st.divider()
-with st.expander(f"📋 View Transaction History"):
+st.sidebar.divider()
+st.sidebar.caption(f"👤 Logged in as: **{st.session_state.username}**")
+if st.sidebar.button("🚪 Logout", use_container_width=True):
+    st.session_state.username = None
+    st.rerun()
+
+
+# ==========================================
+# PAGE 1: HOME (DASHBOARD)
+# ==========================================
+if page == "🏠 Home (Dashboard)":
+    st.title("💸 Financial Dashboard")
+    st.write("Welcome to your summary.")
+    
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Income", f"Rp {total_masuk_str}")
+    col2.metric("Expenses", f"Rp {total_keluar_str}")
+    col3.metric("Balance", f"Rp {saldo_str}")
+    
+    st.info("👈 Use the sidebar to navigate through features.")
+
+
+# ==========================================
+# PAGE 2: ADD INCOME
+# ==========================================
+elif page == "💰 Add Income":
+    st.title("💰 Add Income")
+    with st.form("form_pemasukan"):
+        pemasukan_baru = st.number_input("Income Amount (Rp)", min_value=0, step=10000)
+        if st.form_submit_button("Update Income", use_container_width=True) and pemasukan_baru > 0:
+            total_saat_ini = int(total_masuk_str.replace('.', '').replace(',', '')) if total_masuk_str else 0
+            worksheet.update_acell('F2', total_saat_ini + int(pemasukan_baru))
+            st.success("Successfully added!")
+            st.rerun()
+
+
+# ==========================================
+# PAGE 3: MANUAL EXPENSE
+# ==========================================
+elif page == "📝 Manual Expense":
+    st.title("📝 Add Manual Expense")
+    with st.form("form_manual"):
+        col_m1, col_m2 = st.columns([3, 1])
+        with col_m1:
+            nama_barang_manual = st.text_input("Description / Item Name")
+        with col_m2:
+            jumlah_manual = st.number_input("Qty", min_value=1, value=1)
+            
+        nominal_manual = st.number_input("Unit Price (Rp)", min_value=0, step=1000)
+        
+        if st.form_submit_button("Save Expense", use_container_width=True):
+            if nama_barang_manual and nominal_manual > 0:
+                with st.spinner("Storing..."):
+                    total_pengeluaran = int(nominal_manual) * jumlah_manual
+                    
+                    tanggal_manual = (datetime.utcnow() + timedelta(hours=7)).strftime("%d/%m/%Y")
+                    baris_baru = len(list(filter(None, worksheet.col_values(1)))) + 1
+                    
+                    worksheet.update(
+                        values=[[tanggal_manual, nama_barang_manual, str(jumlah_manual), total_pengeluaran]], 
+                        range_name=f'A{baris_baru}:D{baris_baru}'
+                    )
+                    
+                    total_keluar_now = int(str(total_keluar_str).replace('.', '').replace(',', '')) if total_keluar_str else 0
+                    total_masuk_now = int(str(total_masuk_str).replace('.', '').replace(',', '')) if total_masuk_str else 0
+                    
+                    pengeluaran_baru = total_keluar_now + total_pengeluaran
+                    saldo_baru = total_masuk_now - pengeluaran_baru
+                    
+                    worksheet.update(values=[[pengeluaran_baru, saldo_baru]], range_name='G2:H2')
+                    
+                    st.success(f"✅ Success! Total: Rp {total_pengeluaran:,}")
+                    st.rerun()
+            else:
+                st.warning("Please enter a valid description and unit price!")
+
+
+# ==========================================
+# PAGE 4: UPLOAD RECEIPT AI 
+# ==========================================
+elif page == "🤖 AI Receipt Scanner":
+    st.title("🤖 Upload Receipt")
+    st.write("Upload M-Banking, E-Commerce, or Shopping Receipts.")
+    
+    with st.form("form_ai_otomatis"):
+        st.caption("Optional: Fill in Custom Description if your receipt (like QRIS) doesn't have item details.")
+        
+        col_ai1, col_ai2 = st.columns([3, 1])
+        with col_ai1:
+            custom_name = st.text_input("Custom Description (Optional)", placeholder="e.g., Nasi Goreng")
+        with col_ai2:
+            custom_qty = st.number_input("Qty", min_value=1, value=1)
+            
+        uploaded_file = st.file_uploader("Upload receipt here", type=['png', 'jpg', 'jpeg'])
+        submit_ai = st.form_submit_button("Process Receipt", use_container_width=True)
+    
+        if submit_ai:
+            if uploaded_file is None:
+                st.warning("⚠️ Please upload your receipt first!")
+            else:
+                with st.spinner("The receipt is being processed..."):
+                    try:
+                        image = Image.open(uploaded_file)
+                        
+                        prompt = """
+                        Analyze this receipt, e-commerce invoice, or M-Banking/QRIS transfer proof image. 
+                        Your task is to extract the main data into a pure JSON format without markdown text (no ```json prefix).
+                        
+                        Extraction rules:
+                        1. "tanggal": Format DD/MM/YYYY. If not found, leave blank "".
+                        2. "keterangan": 
+                           - If M-Banking/QRIS: Write the transfer recipient / institution name.
+                           - If E-commerce: Write the item name briefly.
+                           - If Bulk Shopping: Write the store name only (e.g., "Indomaret", "McD").
+                        3. "harga_satuan": 
+                           - Price per 1 pcs of item, OR
+                           - Grand Total (if it's a bulk shopping receipt / QRIS / m-banking transfer). Pure number without dots/commas/currency.
+    
+                        MANDATORY JSON format to return:
+                        {
+                            "tanggal": "25/12/2023",
+                            "keterangan": "Topup Gopay",
+                            "harga_satuan": 50000
+                        }
+                        """
+                        response = model.generate_content([prompt, image])
+                        res_text = response.text.replace("```json", "").replace("```", "").strip()
+                        data = json.loads(res_text)
+                        
+                        tanggal = data.get("tanggal", "")
+                        if not tanggal:
+                            tanggal = (datetime.utcnow() + timedelta(hours=7)).strftime("%d/%m/%Y")
+                            
+                        nama_barang_ai = data.get("keterangan", "Expense (AI)")
+                        final_nama = custom_name.strip() if custom_name.strip() != "" else nama_barang_ai
+                        
+                        final_qty = custom_qty 
+                        harga_satuan = int(data.get("harga_satuan", 0))
+                        
+                        if harga_satuan > 0:
+                            harga_akhir = harga_satuan * final_qty
+                            
+                            baris_baru = len(list(filter(None, worksheet.col_values(1)))) + 1
+                            worksheet.update(
+                                values=[[tanggal, final_nama, str(final_qty), harga_akhir]], 
+                                range_name=f'A{baris_baru}:D{baris_baru}'
+                            )
+                            
+                            total_keluar_now = int(str(total_keluar_str).replace('.', '').replace(',', '')) if total_keluar_str else 0
+                            total_masuk_now = int(str(total_masuk_str).replace('.', '').replace(',', '')) if total_masuk_str else 0
+                            
+                            pengeluaran_baru = total_keluar_now + harga_akhir
+                            saldo_baru = total_masuk_now - pengeluaran_baru
+                            
+                            worksheet.update(values=[[pengeluaran_baru, saldo_baru]], range_name='G2:H2')
+                            
+                            st.success(f"✅ Receipt processed: **{final_nama}** | Rp {harga_satuan:,} x {final_qty} (Qty). Total: Rp {harga_akhir:,}")
+                            st.rerun()
+                        else:
+                            st.error("❌ The receipt could not be read. Please ensure the receipt image is clear and readable.")
+                            
+                    except Exception as e:
+                        st.error(f"Failed to process receipt. (Error: {e})")
+
+
+# ==========================================
+# PAGE 5: TRANSACTION HISTORY
+# ==========================================
+elif page == "📋 Transaction History":
+    st.title("📋 Transaction History")
     semua_data = worksheet.get_all_values()
     if len(semua_data) > 1:
         df = pd.DataFrame(semua_data[1:], columns=semua_data[0])
         df_transaksi = df[['Tanggal', 'Keterangan / Nama Barang', 'Jumlah', 'Pengeluaran (Rp)']]
         df_transaksi = df_transaksi[df_transaksi['Tanggal'].astype(bool) & (df_transaksi['Tanggal'] != '')]
         
-        # Translate column headers for UI display only
         df_transaksi.columns = ['Date', 'Description', 'Qty', 'Total Expense (Rp)']
         st.dataframe(df_transaksi, use_container_width=True, hide_index=True)
     else:
         st.info("No transaction history yet.")
-
-# ADD MANUAL INCOME
-st.divider()
-st.subheader("💰 Add Income")
-with st.form("form_pemasukan"):
-    pemasukan_baru = st.number_input("Income Amount (Rp)", min_value=0, step=10000)
-    if st.form_submit_button("Update Income", use_container_width=True) and pemasukan_baru > 0:
-        total_saat_ini = int(total_masuk_str.replace('.', '').replace(',', '')) if total_masuk_str else 0
-        worksheet.update_acell('F2', total_saat_ini + int(pemasukan_baru))
-        st.success("Successfully added!")
-        st.rerun()
-
-# ADD MANUAL EXPENSE
-st.divider()
-st.subheader("📝 Add Manual Expense")
-with st.form("form_manual"):
-    col_m1, col_m2 = st.columns([3, 1])
-    with col_m1:
-        nama_barang_manual = st.text_input("Description / Item Name")
-    with col_m2:
-        jumlah_manual = st.number_input("Qty", min_value=1, value=1)
-        
-    nominal_manual = st.number_input("Unit Price (Rp)", min_value=0, step=1000)
-    
-    if st.form_submit_button("Save Expense", use_container_width=True):
-        if nama_barang_manual and nominal_manual > 0:
-            with st.spinner("Storing..."):
-                total_pengeluaran = int(nominal_manual) * jumlah_manual
-                
-                tanggal_manual = (datetime.utcnow() + timedelta(hours=7)).strftime("%d/%m/%Y")
-                baris_baru = len(list(filter(None, worksheet.col_values(1)))) + 1
-                
-                worksheet.update(
-                    values=[[tanggal_manual, nama_barang_manual, str(jumlah_manual), total_pengeluaran]], 
-                    range_name=f'A{baris_baru}:D{baris_baru}'
-                )
-                
-                total_keluar_now = int(str(total_keluar_str).replace('.', '').replace(',', '')) if total_keluar_str else 0
-                total_masuk_now = int(str(total_masuk_str).replace('.', '').replace(',', '')) if total_masuk_str else 0
-                
-                pengeluaran_baru = total_keluar_now + total_pengeluaran
-                saldo_baru = total_masuk_now - pengeluaran_baru
-                
-                worksheet.update(values=[[pengeluaran_baru, saldo_baru]], range_name='G2:H2')
-                
-                st.success(f"✅ Success! Total: Rp {total_pengeluaran:,}")
-                st.rerun()
-        else:
-            st.warning("Please enter a valid description and unit price!")
-
-# ==========================================
-# UPLOAD RECEIPT AI (Auto & Hybrid Override)
-# ==========================================
-st.divider()
-st.subheader("🤖 Upload Receipt")
-st.write("Upload M-Banking, E-Commerce, or Shopping Receipts.")
-
-with st.form("form_ai_otomatis"):
-    st.caption("Optional: Fill in Custom Description if your receipt (like QRIS) doesn't have item details.")
-    
-    # Kolom opsional buat numpuk (override) hasil AI
-    col_ai1, col_ai2 = st.columns([3, 1])
-    with col_ai1:
-        custom_name = st.text_input("Custom Description (Optional)", placeholder="e.g., Nasi Goreng")
-    with col_ai2:
-        custom_qty = st.number_input("Qty", min_value=1, value=1)
-        
-    uploaded_file = st.file_uploader("Upload receipt here", type=['png', 'jpg', 'jpeg'])
-    submit_ai = st.form_submit_button("Process Receipt", use_container_width=True)
-
-    if submit_ai:
-        if uploaded_file is None:
-            st.warning("⚠️ Please upload your receipt first!")
-        else:
-            with st.spinner("The receipt is being processed..."):
-                try:
-                    image = Image.open(uploaded_file)
-                    
-                    # Prompt AI difokuskan buat nyari nama toko/merchant dan Total Harga
-                    prompt = """
-                    Analyze this receipt, e-commerce invoice, or M-Banking/QRIS transfer proof image. 
-                    Your task is to extract the main data into a pure JSON format without markdown text (no ```json prefix).
-                    
-                    Extraction rules:
-                    1. "tanggal": Format DD/MM/YYYY. If not found, leave blank "".
-                    2. "keterangan": 
-                       - If M-Banking/QRIS: Write the transfer recipient / institution name.
-                       - If E-commerce: Write the item name briefly.
-                       - If Bulk Shopping: Write the store name only (e.g., "Indomaret", "McD").
-                    3. "harga_satuan": 
-                       - Price per 1 pcs of item, OR
-                       - Grand Total (if it's a bulk shopping receipt / QRIS / m-banking transfer). Pure number without dots/commas/currency.
-
-                    MANDATORY JSON format to return:
-                    {
-                        "tanggal": "25/12/2023",
-                        "keterangan": "Topup Gopay",
-                        "harga_satuan": 50000
-                    }
-                    """
-                    response = model.generate_content([prompt, image])
-                    res_text = response.text.replace("```json", "").replace("```", "").strip()
-                    data = json.loads(res_text)
-                    
-                    tanggal = data.get("tanggal", "")
-                    if not tanggal:
-                        tanggal = (datetime.utcnow() + timedelta(hours=7)).strftime("%d/%m/%Y")
-                        
-                    # === LOGIKA OVERRIDE (TIMPA NAMA BARANG) ===
-                    # Kalau lu ngetik nama di form, pakai nama lu. Kalau kosong, pakai hasil bacaan AI.
-                    nama_barang_ai = data.get("keterangan", "Expense (AI)")
-                    final_nama = custom_name.strip() if custom_name.strip() != "" else nama_barang_ai
-                    
-                    # Qty ambil murni dari inputan form lu (default 1)
-                    final_qty = custom_qty 
-                    harga_satuan = int(data.get("harga_satuan", 0))
-                    
-                    if harga_satuan > 0:
-                        # LOGIKA MATEMATIKA: Harga Akhir = Harga Satuan (dari AI) x Qty (dari Form)
-                        harga_akhir = harga_satuan * final_qty
-                        
-                        # Simpan ke Google Sheets
-                        baris_baru = len(list(filter(None, worksheet.col_values(1)))) + 1
-                        worksheet.update(
-                            values=[[tanggal, final_nama, str(final_qty), harga_akhir]], 
-                            range_name=f'A{baris_baru}:D{baris_baru}'
-                        )
-                        
-                        # Update Saldo Dashboard
-                        total_keluar_now = int(str(total_keluar_str).replace('.', '').replace(',', '')) if total_keluar_str else 0
-                        total_masuk_now = int(str(total_masuk_str).replace('.', '').replace(',', '')) if total_masuk_str else 0
-                        
-                        pengeluaran_baru = total_keluar_now + harga_akhir
-                        saldo_baru = total_masuk_now - pengeluaran_baru
-                        
-                        worksheet.update(values=[[pengeluaran_baru, saldo_baru]], range_name='G2:H2')
-                        
-                        st.success(f"✅ Receipt processed: **{final_nama}** | Rp {harga_satuan:,} x {final_qty} (Qty). Total: Rp {harga_akhir:,}")
-                        st.rerun()
-                    else:
-                        st.error("❌ The receipt could not be read. Please ensure the receipt image is clear and readable.")
-                        
-                except Exception as e:
-                    st.error(f"Failed to process receipt. (Error: {e})")
