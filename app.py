@@ -31,12 +31,19 @@ elegant_css = """
         color: #e0e0e0;
     }
     
-    /* 2. TRANSPARENT HEADER */
+    /* 2. RESPONSIVE CONTAINER (Biar ruangnya lebih lega di Laptop) */
+    .block-container {
+        max-width: 850px !important; /* Lebih lebar dari default 730px */
+        padding-top: 3rem !important;
+        padding-bottom: 3rem !important;
+    }
+
+    /* 3. TRANSPARENT HEADER */
     [data-testid="stHeader"] {
         background: transparent !important;
     }
 
-    /* 3. PREMIUM GLASSMORPHISM */
+    /* 4. PREMIUM GLASSMORPHISM */
     div[data-testid="stForm"], div[data-testid="metric-container"], .stExpander {
         background: rgba(255, 255, 255, 0.05) !important;
         backdrop-filter: blur(16px) saturate(180%);
@@ -54,18 +61,23 @@ elegant_css = """
         box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.6);
     }
 
-    /* 4. WARNA TEKS SALDO YANG ELEGAN */
+    /* 5. RESPONSIVE METRIC TEXT (Solusi angka kepotong) */
     div[data-testid="metric-container"] label {
         color: #b0bec5 !important;
         font-weight: 400;
         letter-spacing: 1px;
     }
-    div[data-testid="metric-container"] div {
+    div[data-testid="stMetricValue"] > div {
         color: #ffffff !important;
         font-weight: 600;
+        /* Ukuran huruf dinamis: mengecil otomatis di HP, membesar di Laptop */
+        font-size: clamp(1.1rem, 2.5vw, 1.8rem) !important; 
+        white-space: nowrap !important;
+        text-overflow: clip !important; /* Matikan titik-titik (ellipsis) */
+        overflow: visible !important;
     }
 
-    /* 5. ELEGANT BUTTONS (Tombol dengan gradien biru & glowing shadow) */
+    /* 6. ELEGANT BUTTONS */
     div.stButton > button {
         background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
         color: white !important;
@@ -83,7 +95,7 @@ elegant_css = """
         box-shadow: 0 6px 20px rgba(0, 242, 254, 0.6);
     }
 
-    /* 6. CLEAN INPUT FIELDS (Kotak isian transparan) */
+    /* 7. CLEAN INPUT FIELDS (Kotak isian transparan) */
     div[data-testid="stTextInput"] input, div[data-testid="stNumberInput"] input {
         background-color: rgba(0, 0, 0, 0.3) !important;
         border: 1px solid rgba(255, 255, 255, 0.15) !important;
@@ -92,13 +104,12 @@ elegant_css = """
         padding: 10px !important;
     }
     
-    /* Efek menyala saat form diklik */
     div[data-testid="stTextInput"] input:focus, div[data-testid="stNumberInput"] input:focus {
         border: 1px solid #00f2fe !important;
         box-shadow: 0 0 10px rgba(0, 242, 254, 0.3) !important;
     }
 
-    /* 7. SEMBUNYIKAN MENU STREAMLIT */
+    /* 8. SEMBUNYIKAN MENU STREAMLIT */
     html, body { overscroll-behavior: none !important; }
     [data-testid="stSidebarNav"], [data-testid="collapsedControl"] { display: none; }
     footer {visibility: hidden;}
