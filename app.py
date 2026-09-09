@@ -204,26 +204,45 @@ with st.form("form_manual"):
         else:
             st.warning("Isi keterangan dan nominal dengan benar!")
 
-# UPLOAD STRUK AI
+# ==========================================
+# UPLOAD STRUK AI (Kombinasi Manual + AI)
+# ==========================================
 st.divider()
-st.subheader("🤖 Upload Struk (AI)")
-uploaded_files = st.file_uploader("Upload screenshot m-BCA / e-Commerce", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True)
+st.subheader("🤖 Upload Struk (Manual + AI)")
+st.write("Isi nama & jumlah barang manual, biar AI yang nyari harganya dari struk!")
 
-if uploaded_files:
-    for file in uploaded_files:
-        st.markdown(f"**Memproses:** `{file.name}`")
-        if st.button(f"Minta AI Baca Struk", key=f"btn_{file.name}", use_container_width=True):
-            with st.spinner("AI sedang membaca struk..."):
+with st.form("form_ai_manual"):
+    # Bikin inputan sejajar biar rapi
+    col_ai1, col_ai2 = st.columns([3, 1])
+    with col_ai1:
+        nama_barang_ai = st.text_input("Keterangan / Nama Barang")
+    with col_ai2:
+        jumlah_ai = st.number_input("Qty", min_value=1, value=1)
+        
+    uploaded_file = st.file_uploader("Upload screenshot struk", type=['png', 'jpg', 'jpeg'])
+    
+    # Tombol submit-nya ada di dalam form
+    submit_ai = st.form_submit_button("Proses dengan AI", use_container_width=True)
+
+    if submit_ai:
+        if not nama_barang_ai:
+            st.warning("⚠️ Isi dulu Keterangan / Nama Barang-nya bro!")
+        elif uploaded_file is None:
+            st.warning("⚠️ Upload dulu gambar struknya!")
+        else:
+            with st.spinner("AI sedang melototin harga di struk..."):
                 try:
-                    image = Image.open(file)
+                    image = Image.open(uploaded_file)
+                    
+                    # Prompt AI dirubah: Cuma disuruh nyari harga
                     prompt = """
-                    Analisis gambar struk/bukti transfer ini. Ekstrak informasi berikut dan kembalikan HANYA dalam format JSON murni tanpa teks awalan/akhiran:
+                    Analisis gambar struk/bukti transfer ini. Temukan harga satuan barang atau total nominal transfer.
+                    Kembalikan HANYA dalam format JSON murni tanpa teks awalan/akhiran:
                     {
                         "tanggal": "DD/MM/YYYY",
-                        "keterangan": "Nama toko atau penerima transfer",
-                        "total": 50000
+                        "harga": 50000
                     }
-                    Jika tanggal tidak ada, kosongkan nilainya. Nilai "total" harus berupa angka integer.
+                    Jika tanggal tidak ada, kosongkan nilainya. Nilai "harga" harus angka integer murni tanpa titik.
                     """
                     response = model.generate_content([prompt, image])
                     res_text = response.text.replace("```json", "").replace("```", "").strip()
@@ -233,16 +252,23 @@ if uploaded_files:
                     if not tanggal:
                         tanggal = (datetime.utcnow() + timedelta(hours=7)).strftime("%d/%m/%Y")
                         
-                    nama_barang = data.get("keterangan", "Pengeluaran (AI)")
-                    clean_nominal = int(data.get("total", 0))
+                    # AI cuma ngambil angka harga
+                    harga_dari_ai = int(data.get("harga", 0))
                     
-                    if clean_nominal > 0:
+                    if harga_dari_ai > 0:
+                        # LOGIKA MATEMATIKA LU DI SINI: Harga Akhir = Harga AI x Jumlah Manual
+                        harga_akhir = harga_dari_ai * jumlah_ai
+                        
+                        # Simpan ke Google Sheets
                         baris_baru = len(list(filter(None, worksheet.col_values(1)))) + 1
-                        worksheet.update(values=[[tanggal, nama_barang, "1", clean_nominal]], range_name=f'A{baris_baru}:D{baris_baru}')
-                        st.success(f"✅ Sukses dicatat oleh AI: {tanggal} | {nama_barang} | Rp {clean_nominal:,}")
-                        st.rerun()
+                        worksheet.update(
+                            values=[[tanggal, nama_barang_ai, str(jumlah_ai), harga_akhir]], 
+                            range_name=f'A{baris_baru}:D{baris_baru}'
+                        )
+                        
+                        st.success(f"✅ AI nemu harga Rp {harga_dari_ai:,} x {jumlah_ai} (Qty). Total tersimpan: Rp {harga_akhir:,}")
                     else:
-                        st.error("❌ AI tidak menemukan nominal pengeluaran di gambar ini.")
+                        st.error("❌ AI gagal nemuin angka harga di gambar ini. Coba foto yang lebih jelas.")
                         
                 except Exception as e:
-                    st.error(f"Gagal diproses AI. Pastikan gambar jelas. (Error: {e})")
+                    st.error(f"Gagal diproses. Pastikan gambar jelas. (Error: {e})")
