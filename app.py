@@ -198,7 +198,7 @@ with st.form("form_manual"):
     
     if st.form_submit_button("Simpan Pengeluaran", use_container_width=True):
         if nama_barang_manual and nominal_manual > 0:
-            with st.spinner("Menyimpan..."):
+            with st.spinner("Storing..."):
                 # LOGIKA MATEMATIKA: Harga Satuan x Qty
                 total_pengeluaran = int(nominal_manual) * jumlah_manual
                 
@@ -210,7 +210,7 @@ with st.form("form_manual"):
                     values=[[tanggal_manual, nama_barang_manual, str(jumlah_manual), total_pengeluaran]], 
                     range_name=f'A{baris_baru}:D{baris_baru}'
                 )
-                st.success(f"✅ Sukses dicatat! Total: Rp {total_pengeluaran:,}")
+                st.success(f"✅ Success! Total: Rp {total_pengeluaran:,}")
                 st.rerun()
         else:
             st.warning("Isi keterangan dan harga satuan dengan benar!")
@@ -219,8 +219,8 @@ with st.form("form_manual"):
 # UPLOAD STRUK AI (Kombinasi Manual + AI)
 # ==========================================
 st.divider()
-st.subheader("🤖 Upload Struk (Manual + AI)")
-st.write("Isi nama & jumlah barang manual, biar AI yang nyari harganya dari struk!")
+st.subheader("🤖 Upload Struk (M-Banking/E-Commerce)")
+st.write("Isi nama & jumlah barang")
 
 with st.form("form_ai_manual"):
     # Bikin inputan sejajar biar rapi
@@ -230,18 +230,18 @@ with st.form("form_ai_manual"):
     with col_ai2:
         jumlah_ai = st.number_input("Qty", min_value=1, value=1)
         
-    uploaded_file = st.file_uploader("Upload screenshot struk", type=['png', 'jpg', 'jpeg'])
+    uploaded_file = st.file_uploader("Upload struk", type=['png', 'jpg', 'jpeg'])
     
     # Tombol submit-nya ada di dalam form
-    submit_ai = st.form_submit_button("Proses dengan AI", use_container_width=True)
+    submit_ai = st.form_submit_button("Simpan Pengeluaran", use_container_width=True)
 
     if submit_ai:
         if not nama_barang_ai:
-            st.warning("⚠️ Isi dulu Keterangan / Nama Barang-nya bro!")
+            st.warning("⚠️ Mohon isi terlebih dahulu Keterangan / Nama Barang-nya")
         elif uploaded_file is None:
-            st.warning("⚠️ Upload dulu gambar struknya!")
+            st.warning("⚠️ Mohon upload struknya!")
         else:
-            with st.spinner("AI sedang melototin harga di struk..."):
+            with st.spinner("Reading Receipt..."):
                 try:
                     image = Image.open(uploaded_file)
                     
@@ -277,9 +277,9 @@ with st.form("form_ai_manual"):
                             range_name=f'A{baris_baru}:D{baris_baru}'
                         )
                         
-                        st.success(f"✅ AI nemu harga Rp {harga_dari_ai:,} x {jumlah_ai} (Qty). Total tersimpan: Rp {harga_akhir:,}")
+                        st.success(f"✅ Receipt found Rp {harga_dari_ai:,} x {jumlah_ai} (Qty). Total tersimpan: Rp {harga_akhir:,}")
                     else:
-                        st.error("❌ AI gagal nemuin angka harga di gambar ini. Coba foto yang lebih jelas.")
+                        st.error("❌ Receipt un-readable. Please make sure the receipt is clear.")
                         
                 except Exception as e:
-                    st.error(f"Gagal diproses. Pastikan gambar jelas. (Error: {e})")
+                    st.error(f"Failed to process. Please make sure the receipt is clear. (Error: {e})")
