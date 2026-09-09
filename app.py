@@ -14,7 +14,6 @@ st.set_page_config(page_title="Expenses Tracker SaaS", page_icon="💸", layout=
 
 elegant_css = """
     <style>
-    /* Import Font Modern 'Inter' */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
 
     html, body, [class*="css"]  {
@@ -31,19 +30,18 @@ elegant_css = """
         color: #e0e0e0;
     }
     
-    /* 2. RESPONSIVE CONTAINER (Biar ruangnya lebih lega di Laptop) */
+    /* 2. RESPONSIVE CONTAINER */
     .block-container {
-        max-width: 850px !important; /* Lebih lebar dari default 730px */
+        max-width: 850px !important;
         padding-top: 3rem !important;
         padding-bottom: 3rem !important;
     }
 
-    /* 3. TRANSPARENT HEADER */
     [data-testid="stHeader"] {
         background: transparent !important;
     }
 
-    /* 4. PREMIUM GLASSMORPHISM */
+    /* 3. PREMIUM GLASSMORPHISM UTAMA */
     div[data-testid="stForm"], div[data-testid="metric-container"], .stExpander {
         background: rgba(255, 255, 255, 0.05) !important;
         backdrop-filter: blur(16px) saturate(180%);
@@ -55,13 +53,11 @@ elegant_css = """
         transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
     
-    /* Animasi Mengambang untuk Kartu Saldo */
     div[data-testid="metric-container"]:hover {
         transform: translateY(-5px);
         box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.6);
     }
 
-    /* 5. RESPONSIVE METRIC TEXT (Solusi angka kepotong) */
     div[data-testid="metric-container"] label {
         color: #b0bec5 !important;
         font-weight: 400;
@@ -70,46 +66,87 @@ elegant_css = """
     div[data-testid="stMetricValue"] > div {
         color: #ffffff !important;
         font-weight: 600;
-        /* Ukuran huruf dinamis: mengecil otomatis di HP, membesar di Laptop */
         font-size: clamp(1.1rem, 2.5vw, 1.8rem) !important; 
         white-space: nowrap !important;
-        text-overflow: clip !important; /* Matikan titik-titik (ellipsis) */
+        text-overflow: clip !important; 
         overflow: visible !important;
     }
 
-    /* 6. ELEGANT BUTTONS */
-    div.stButton > button {
-        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    /* 4. ELEGANT BUTTONS */
+    div.stButton > button, div[data-testid="stFormSubmitButton"] > button {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%) !important;
         color: white !important;
-        border: none;
-        border-radius: 12px;
-        padding: 10px 24px;
-        font-weight: 600;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 10px 24px !important;
+        font-weight: 600 !important;
         letter-spacing: 0.5px;
         transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(0, 242, 254, 0.3);
+        box-shadow: 0 4px 15px rgba(0, 242, 254, 0.3) !important;
     }
     
-    div.stButton > button:hover {
+    div.stButton > button:hover, div[data-testid="stFormSubmitButton"] > button:hover {
         transform: scale(1.02);
-        box-shadow: 0 6px 20px rgba(0, 242, 254, 0.6);
+        box-shadow: 0 6px 20px rgba(0, 242, 254, 0.6) !important;
     }
 
-    /* 7. CLEAN INPUT FIELDS (Kotak isian transparan) */
-    div[data-testid="stTextInput"] input, div[data-testid="stNumberInput"] input {
-        background-color: rgba(0, 0, 0, 0.3) !important;
+    /* 5. FIX KOTAK INPUT (Menembus warna solid bawaan Streamlit) */
+    div[data-baseweb="input"], div[data-baseweb="base-input"] {
+        background-color: rgba(255, 255, 255, 0.05) !important;
         border: 1px solid rgba(255, 255, 255, 0.15) !important;
-        color: white !important;
         border-radius: 10px !important;
-        padding: 10px !important;
     }
-    
-    div[data-testid="stTextInput"] input:focus, div[data-testid="stNumberInput"] input:focus {
-        border: 1px solid #00f2fe !important;
+    div[data-baseweb="input"] input {
+        color: white !important;
+        background-color: transparent !important;
+        padding: 12px !important;
+    }
+    div[data-baseweb="input"]:focus-within {
+        border-color: #00f2fe !important;
         box-shadow: 0 0 10px rgba(0, 242, 254, 0.3) !important;
     }
 
-    /* 8. SEMBUNYIKAN MENU STREAMLIT */
+    /* 6. FIX TAB LOGIN & REGISTER (Membuat panel tab tembus pandang) */
+    [data-testid="stTabs"] [data-baseweb="tab-list"] {
+        gap: 10px;
+        background-color: transparent !important;
+    }
+    [data-testid="stTabs"] [data-baseweb="tab-panel"] {
+        background: rgba(255, 255, 255, 0.05) !important;
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-top: none;
+        border-radius: 0 0 20px 20px;
+        padding: 20px;
+    }
+
+    /* 7. GLASSMORPHISM UNTUK TABEL HISTORY */
+    [data-testid="stTable"] {
+        background: rgba(255, 255, 255, 0.05) !important;
+        backdrop-filter: blur(16px);
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    [data-testid="stTable"] table {
+        color: white !important;
+        background: transparent !important;
+        width: 100%;
+    }
+    [data-testid="stTable"] th {
+        background-color: rgba(0, 242, 254, 0.1) !important;
+        color: #00f2fe !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+    }
+    [data-testid="stTable"] td {
+        background: transparent !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    }
+    /* Trik CSS: Sembunyikan kolom angka index bawaan pandas biar rapi */
+    [data-testid="stTable"] th:first-child, [data-testid="stTable"] td:first-child {
+        display: none;
+    }
+
+    /* Sembunyikan menu bawaan */
     html, body { overscroll-behavior: none !important; }
     [data-testid="stSidebarNav"], [data-testid="collapsedControl"] { display: none; }
     footer {visibility: hidden;}
@@ -472,6 +509,6 @@ elif st.session_state.current_page == 'history':
         df_transaksi = df_transaksi[df_transaksi['Tanggal'].astype(bool) & (df_transaksi['Tanggal'] != '')]
         
         df_transaksi.columns = ['Date', 'Description', 'Qty', 'Total Expense (Rp)']
-        st.dataframe(df_transaksi, use_container_width=True, hide_index=True)
+        st.table(df_transaksi)
     else:
         st.info("No transaction history yet.")
