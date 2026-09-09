@@ -8,7 +8,7 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
 
 # ==========================================
-# PAGE CONFIGURATION & CSS (ELEGANT UI)
+# PAGE CONFIGURATION & CSS (ELEGANT + IMAGE BACKGROUND)
 # ==========================================
 st.set_page_config(page_title="Expenses Tracker SaaS", page_icon="💸", layout="centered")
 
@@ -21,10 +21,12 @@ elegant_css = """
         font-family: 'Inter', sans-serif;
     }
 
-    /* 1. ELEGANT DARK BACKGROUND (Gradien gelap mewah ala Fintech) */
+    /* 1. BACKGROUND GAMBAR DENGAN LAPISAN GELAP (DARK OVERLAY) */
     .stApp {
-        background: radial-gradient(circle at top left, #1a1a2e, #16213e, #0f3460);
+        background: linear-gradient(rgba(15, 32, 39, 0.75), rgba(32, 58, 67, 0.75)), 
+                    url("https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop");
         background-size: cover;
+        background-position: center;
         background-attachment: fixed;
         color: #e0e0e0;
     }
@@ -34,14 +36,14 @@ elegant_css = """
         background: transparent !important;
     }
 
-    /* 3. PREMIUM GLASSMORPHISM (Efek kaca lebih halus & saturasi tinggi) */
+    /* 3. PREMIUM GLASSMORPHISM */
     div[data-testid="stForm"], div[data-testid="metric-container"], .stExpander {
-        background: rgba(255, 255, 255, 0.03) !important;
+        background: rgba(255, 255, 255, 0.05) !important;
         backdrop-filter: blur(16px) saturate(180%);
         -webkit-backdrop-filter: blur(16px) saturate(180%);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 20px;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
         padding: 20px;
         transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
@@ -49,12 +51,12 @@ elegant_css = """
     /* Animasi Mengambang untuk Kartu Saldo */
     div[data-testid="metric-container"]:hover {
         transform: translateY(-5px);
-        box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.4);
+        box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.6);
     }
 
     /* 4. WARNA TEKS SALDO YANG ELEGAN */
     div[data-testid="metric-container"] label {
-        color: #a0aab2 !important;
+        color: #b0bec5 !important;
         font-weight: 400;
         letter-spacing: 1px;
     }
@@ -63,7 +65,7 @@ elegant_css = """
         font-weight: 600;
     }
 
-    /* 5. ELEGANT BUTTONS (Tombol dengan gradien & glowing shadow) */
+    /* 5. ELEGANT BUTTONS (Tombol dengan gradien biru & glowing shadow) */
     div.stButton > button {
         background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
         color: white !important;
@@ -83,8 +85,8 @@ elegant_css = """
 
     /* 6. CLEAN INPUT FIELDS (Kotak isian transparan) */
     div[data-testid="stTextInput"] input, div[data-testid="stNumberInput"] input {
-        background-color: rgba(0, 0, 0, 0.2) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        background-color: rgba(0, 0, 0, 0.3) !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
         color: white !important;
         border-radius: 10px !important;
         padding: 10px !important;
@@ -93,7 +95,7 @@ elegant_css = """
     /* Efek menyala saat form diklik */
     div[data-testid="stTextInput"] input:focus, div[data-testid="stNumberInput"] input:focus {
         border: 1px solid #00f2fe !important;
-        box-shadow: 0 0 10px rgba(0, 242, 254, 0.2) !important;
+        box-shadow: 0 0 10px rgba(0, 242, 254, 0.3) !important;
     }
 
     /* 7. SEMBUNYIKAN MENU STREAMLIT */
