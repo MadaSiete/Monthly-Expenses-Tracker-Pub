@@ -190,19 +190,30 @@ with st.form("form_manual"):
     with col_m1:
         nama_barang_manual = st.text_input("Keterangan / Nama Barang")
     with col_m2:
-        jumlah_manual = st.text_input("Qty", value="1")
-    nominal_manual = st.number_input("Nominal Pengeluaran (Rp)", min_value=0, step=1000)
+        # Ganti jadi number_input biar formatnya pasti angka dan bisa dikali
+        jumlah_manual = st.number_input("Qty", min_value=1, value=1)
+        
+    # Teks label diganti biar memperjelas kalau ini harga per 1 barang
+    nominal_manual = st.number_input("Harga Satuan (Rp)", min_value=0, step=1000)
     
     if st.form_submit_button("Simpan Pengeluaran", use_container_width=True):
         if nama_barang_manual and nominal_manual > 0:
             with st.spinner("Menyimpan..."):
+                # LOGIKA MATEMATIKA: Harga Satuan x Qty
+                total_pengeluaran = int(nominal_manual) * jumlah_manual
+                
                 tanggal_manual = (datetime.utcnow() + timedelta(hours=7)).strftime("%d/%m/%Y")
                 baris_baru = len(list(filter(None, worksheet.col_values(1)))) + 1
-                worksheet.update(values=[[tanggal_manual, nama_barang_manual, jumlah_manual, int(nominal_manual)]], range_name=f'A{baris_baru}:D{baris_baru}')
-                st.success("✅ Sukses dicatat!")
+                
+                # Masukin total_pengeluaran ke dalam Google Sheets
+                worksheet.update(
+                    values=[[tanggal_manual, nama_barang_manual, str(jumlah_manual), total_pengeluaran]], 
+                    range_name=f'A{baris_baru}:D{baris_baru}'
+                )
+                st.success(f"✅ Sukses dicatat! Total: Rp {total_pengeluaran:,}")
                 st.rerun()
         else:
-            st.warning("Isi keterangan dan nominal dengan benar!")
+            st.warning("Isi keterangan dan harga satuan dengan benar!")
 
 # ==========================================
 # UPLOAD STRUK AI (Kombinasi Manual + AI)
