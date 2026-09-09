@@ -10,20 +10,43 @@ from datetime import datetime, timedelta
 # ==========================================
 # PAGE CONFIGURATION & CSS
 # ==========================================
+# ==========================================
+# PAGE CONFIGURATION & CSS
+# ==========================================
 st.set_page_config(page_title="Expenses Tracker SaaS", page_icon="💸", layout="centered")
 
-hide_pull_to_refresh = """
+custom_css = """
     <style>
-    html, body, .stApp { overscroll-behavior: none !important; }
-    /* Hide default Streamlit sidebar button */
-    [data-testid="stSidebarNav"], [data-testid="collapsedControl"] { display: none; }
-    div[data-testid="stForm"] {
-        border-radius: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    /* 1. MENGUBAH BACKGROUND UTAMA (Bisa diganti URL gambarnya) */
+    .stApp {
+        background-image: url("https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop");
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
     }
+    
+    /* 2. BIKIN HEADER ATAS TRANSPARAN */
+    [data-testid="stHeader"] {
+        background: rgba(0,0,0,0) !important;
+    }
+
+    /* 3. EFEK KACA (GLASSMORPHISM) UNTUK FORM & METRIK SALDO */
+    div[data-testid="stForm"], div[data-testid="metric-container"] {
+        background: rgba(30, 30, 30, 0.5) !important; /* Warna dasar transparan */
+        backdrop-filter: blur(12px); /* Efek blur kaca */
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.15); /* Garis pinggir tipis */
+        border-radius: 15px;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        padding: 15px;
+    }
+
+    /* 4. SEMBUNYIKAN MENU STREAMLIT BAWAAN */
+    html, body { overscroll-behavior: none !important; }
+    [data-testid="stSidebarNav"], [data-testid="collapsedControl"] { display: none; }
     </style>
 """
-st.markdown(hide_pull_to_refresh, unsafe_allow_html=True)
+st.markdown(custom_css, unsafe_allow_html=True)
 
 # Session States
 if 'username' not in st.session_state:
