@@ -122,7 +122,7 @@ if st.session_state.username is None:
 # MAIN APP (JALAN SETELAH LOGIN)
 # ==========================================
 genai.configure(api_key=st.secrets["gemini_api_key"])
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-3.5-flash')
 
 col_title, col_logout = st.columns([3, 1])
 with col_title:
