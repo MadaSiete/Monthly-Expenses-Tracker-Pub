@@ -230,7 +230,7 @@ if st.session_state.username is None:
 # APP INITIALIZATION (POST-LOGIN)
 # ==========================================
 genai.configure(api_key=st.secrets["gemini_api_key"])
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-3.5-flash')
 
 with st.spinner("Loading data..."):
     sh = gc.open(MASTER_SHEET_NAME)
@@ -304,7 +304,7 @@ if st.session_state.current_page == 'home':
             st.session_state.current_page = 'manual_expense'
             st.rerun()
     with btn_col2:
-        if st.button("🤖 AI Scanner", use_container_width=True):
+        if st.button("🤖 Receipt Scanner", use_container_width=True):
             st.session_state.current_page = 'ai_scanner'
             st.rerun()
         if st.button("📋 History", use_container_width=True):
