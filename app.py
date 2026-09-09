@@ -172,7 +172,7 @@ if st.session_state.current_page == 'home':
             st.rerun()
 
     with btn_col2:
-        if st.button("🤖 AI Receipt Scanner", use_container_width=True):
+        if st.button("🤖 Receipt Scanner", use_container_width=True):
             st.session_state.current_page = 'ai_scanner'
             st.rerun()
             
