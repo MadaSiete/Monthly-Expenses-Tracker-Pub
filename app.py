@@ -1,4 +1,3 @@
-import io
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
@@ -9,6 +8,7 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
 import requests
 import plotly.express as px
+import io
 
 # ==========================================
 # PAGE CONFIGURATION & CSS
@@ -120,7 +120,7 @@ elegant_css = """
 st.markdown(elegant_css, unsafe_allow_html=True)
 
 # ==========================================
-# SESSION STATES & GLOBALS (PERSISTENT LOGIN)
+# SESSION STATES & GLOBALS
 # ==========================================
 url_user = st.query_params.get("user")
 
@@ -244,12 +244,16 @@ with st.spinner("Syncing your data..."):
 total_masuk_str = worksheet.acell('F2').value or '0'
 total_keluar_str = worksheet.acell('G2').value or '0'
 saldo_str = worksheet.acell('H2').value or '0'
-budget_str = worksheet.acell('I2').value or '0' 
+budget_pct_str = worksheet.acell('I2').value or '80' # Sekarang menyimpan persentase (Default 80%)
 
 raw_income = float(str(total_masuk_str).replace('.', '').replace(',', '')) if total_masuk_str else 0.0
 raw_expense = float(str(total_keluar_str).replace('.', '').replace(',', '')) if total_keluar_str else 0.0
 raw_balance = float(str(saldo_str).replace('.', '').replace(',', '')) if saldo_str else 0.0
-raw_budget = float(str(budget_str).replace('.', '').replace(',', '')) if budget_str else 0.0
+
+# PENGAMANAN: Kalau di sel I2 masih ada nominal jutaan peninggalan versi lama, paksa balik ke 80%
+budget_pct = float(str(budget_pct_str).replace('.', '').replace(',', '')) if budget_pct_str else 80.0
+if budget_pct > 100: 
+    budget_pct = 80.0 
 
 rate_to_display = fetch_exchange_rate('IDR', st.session_state.currency)
 sym = st.session_state.currency_symbol
@@ -257,7 +261,9 @@ sym = st.session_state.currency_symbol
 disp_income = raw_income * rate_to_display
 disp_expense = raw_expense * rate_to_display
 disp_balance = raw_balance * rate_to_display
-disp_budget = raw_budget * rate_to_display
+
+# LOGIKA BARU: Budget adalah sekian Persen dari Total Income
+disp_budget = disp_income * (budget_pct / 100)
 
 def format_curr(value):
     return f"{value:,.0f}" if st.session_state.currency in ['IDR', 'JPY'] else f"{value:,.2f}"
@@ -283,21 +289,21 @@ if st.session_state.current_page == 'home':
     col3.metric("Balance", f"{sym} {format_curr(disp_balance)}")
 
     # ================= BUDGET LIMIT NOTIFICATION =================
-    if disp_budget > 0:
-        st.write(f"**Monthly Budget Limit:** {sym} {format_curr(disp_budget)}")
-        progress = min(disp_expense / disp_budget, 1.0)
+    if disp_income > 0:
+        st.write(f"**Monthly Budget Target ({int(budget_pct)}% of Income):** {sym} {format_curr(disp_budget)}")
+        progress = min(disp_expense / disp_budget, 1.0) if disp_budget > 0 else 0
         st.progress(progress)
         
         if disp_expense >= disp_budget:
-            st.error("🚨 Budget Exceeded! You have spent more than your monthly limit.")
+            st.error(f"🚨 Budget Exceeded! You have spent more than your {int(budget_pct)}% target.")
         elif disp_expense >= disp_budget * 0.8:
-            st.warning("⚠️ Warning: You've utilized over 80% of your budget. Slow down!")
+            st.warning("⚠️ Warning: You've utilized over 80% of your budget limit. Slow down!")
             
-    with st.expander("⚙️ Manage Budget Limit"):
-        new_budget = st.number_input(f"Enter Monthly Budget ({sym})", min_value=0.0, step=100.0)
-        if st.button("Save Budget"):
-            worksheet.update_acell('I2', new_budget * fetch_exchange_rate(st.session_state.currency, 'IDR'))
-            st.success("✅ Budget limit updated successfully!")
+    with st.expander("⚙️ Manage Budget Target (%)"):
+        new_pct = st.number_input("Set Budget Target (% of Income)", min_value=10, max_value=100, value=int(budget_pct), step=5)
+        if st.button("Save Target"):
+            worksheet.update_acell('I2', str(new_pct))
+            st.success(f"✅ Budget target updated to {new_pct}%!")
             st.rerun()
 
     st.divider()
@@ -431,16 +437,12 @@ elif st.session_state.current_page == 'history':
             records.append(clean_row)
             
         df = pd.DataFrame(records, columns=['Tanggal', 'Keterangan', 'Jumlah', 'Pengeluaran', 'Kategori'])
-        
-        # Simpan nomor baris asli untuk sinkronisasi dengan Google Sheets
         df['Sheet_Row'] = df.index + 2 
-        
         df = df[df['Tanggal'].astype(bool) & (df['Tanggal'] != '')]
         
         df['Total Num'] = pd.to_numeric(df['Pengeluaran'].astype(str).str.replace('.', '', regex=False).str.replace(',', '', regex=False), errors='coerce').fillna(0) * rate_to_display
         df['Total Expense'] = df['Total Num'].apply(lambda x: f"{sym} {format_curr(x)}")
         
-        # --- TABLE & DATE FILTER ---
         st.subheader("📄 Transaction List")
         filter_date = st.date_input("🗓️ Filter by Date", value=None)
         
@@ -450,11 +452,10 @@ elif st.session_state.current_page == 'history':
         
         st.caption("💡 *Tip: Click on any Category cell below to change it, then press Save.*")
         
-        # TABEL INTERAKTIF DENGAN DROPDOWN
         edited_df = st.data_editor(
             df_tampil,
             column_config={
-                "Sheet_Row": None, # Sembunyikan kolom sistem ini dari layar
+                "Sheet_Row": None, 
                 "Tanggal": st.column_config.TextColumn("Date", disabled=True),
                 "Keterangan": st.column_config.TextColumn("Description", disabled=True),
                 "Jumlah": st.column_config.TextColumn("Qty", disabled=True),
@@ -470,11 +471,9 @@ elif st.session_state.current_page == 'history':
             key="history_editor"
         )
         
-        # TOMBOL SIMPAN PERUBAHAN KE GOOGLE SHEETS
         if st.button("💾 Save Category Changes", use_container_width=True):
             with st.spinner("Saving changes to database..."):
                 changes_made = False
-                # Cek baris mana saja yang kategorinya diubah oleh user
                 for idx in edited_df.index:
                     old_cat = df_tampil.loc[idx, 'Kategori']
                     new_cat = edited_df.loc[idx, 'Kategori']
@@ -491,10 +490,8 @@ elif st.session_state.current_page == 'history':
         
         st.divider()
         
-        # DOWNLOAD EXCEL BUTTON
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-            # Hapus kolom Sheet_Row biar nggak ikut ke-download
             df_tampil.drop(columns=['Sheet_Row']).to_excel(writer, index=False, sheet_name='Transactions')
         
         st.download_button(
@@ -504,7 +501,6 @@ elif st.session_state.current_page == 'history':
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
         
-        # --- PIE CHART (CATEGORY PERCENTAGE) ---
         st.divider()
         st.subheader("📊 Expenses by Category")
         df_pie = df.groupby('Kategori')['Total Num'].sum().reset_index()
