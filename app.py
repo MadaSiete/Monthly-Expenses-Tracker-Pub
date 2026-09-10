@@ -1,3 +1,4 @@
+import io
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
@@ -490,9 +491,18 @@ elif st.session_state.current_page == 'history':
         
         st.divider()
         
-        # DOWNLOAD CSV BUTTON
-        csv = df_tampil.drop(columns=['Sheet_Row']).to_csv(index=False).encode('utf-8')
-        st.download_button(label="📥 Export to CSV", data=csv, file_name="expenses_history.csv", mime="text/csv")
+        # DOWNLOAD EXCEL BUTTON
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            # Hapus kolom Sheet_Row biar nggak ikut ke-download
+            df_tampil.drop(columns=['Sheet_Row']).to_excel(writer, index=False, sheet_name='Transactions')
+        
+        st.download_button(
+            label="📥 Export to Excel",
+            data=buffer.getvalue(),
+            file_name="expenses_history.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         
         # --- PIE CHART (CATEGORY PERCENTAGE) ---
         st.divider()
