@@ -417,7 +417,15 @@ elif st.session_state.current_page == 'history':
     
     semua_data = worksheet.get_all_values()
     if len(semua_data) > 1:
-        records = [row + ['Other'] * (5 - len(row)) for row in semua_data[1:]]
+        # LOGIKA PERBAIKAN: Selalu memotong data menjadi 5 kolom maksimal
+        records = []
+        for row in semua_data[1:]:
+            clean_row = row[:5]
+            clean_row += ['Other'] * (5 - len(clean_row))
+            if clean_row[4] == '':
+                clean_row[4] = 'Other'
+            records.append(clean_row)
+            
         df = pd.DataFrame(records, columns=['Tanggal', 'Keterangan', 'Jumlah', 'Pengeluaran', 'Kategori'])
         df = df[df['Tanggal'].astype(bool) & (df['Tanggal'] != '')]
         
