@@ -132,7 +132,11 @@ CURRENCY_DATA = {
     "IDR": "Rp", "USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", 
     "SGD": "S$", "MYR": "RM", "AUD": "A$", "CAD": "C$"
 }
-KATEGORI_LIST = ["Food & Drink", "Transportation", "Shopping", "Bills & Utilities", "Entertainment", "Other"]
+KATEGORI_LIST = [
+    "Food & Dining", "Groceries", "Transportation", "Housing & Utilities", 
+    "Shopping", "Entertainment", "Health & Wellness", "Subscriptions", 
+    "Travel", "Education", "Family & Personal", "Other"
+]
 
 if 'currency' not in st.session_state:
     st.session_state.currency = 'IDR'
@@ -417,7 +421,6 @@ elif st.session_state.current_page == 'history':
     
     semua_data = worksheet.get_all_values()
     if len(semua_data) > 1:
-        # LOGIKA PERBAIKAN: Selalu memotong data menjadi 5 kolom maksimal
         records = []
         for row in semua_data[1:]:
             clean_row = row[:5]
@@ -427,6 +430,10 @@ elif st.session_state.current_page == 'history':
             records.append(clean_row)
             
         df = pd.DataFrame(records, columns=['Tanggal', 'Keterangan', 'Jumlah', 'Pengeluaran', 'Kategori'])
+        
+        # Simpan nomor baris asli untuk sinkronisasi dengan Google Sheets
+        df['Sheet_Row'] = df.index + 2 
+        
         df = df[df['Tanggal'].astype(bool) & (df['Tanggal'] != '')]
         
         df['Total Num'] = pd.to_numeric(df['Pengeluaran'].astype(str).str.replace('.', '', regex=False).str.replace(',', '', regex=False), errors='coerce').fillna(0) * rate_to_display
@@ -436,15 +443,55 @@ elif st.session_state.current_page == 'history':
         st.subheader("📄 Transaction List")
         filter_date = st.date_input("🗓️ Filter by Date", value=None)
         
-        df_tampil = df[['Tanggal', 'Keterangan', 'Jumlah', 'Kategori', 'Total Expense']]
+        df_tampil = df[['Sheet_Row', 'Tanggal', 'Keterangan', 'Jumlah', 'Kategori', 'Total Expense']].copy()
         if filter_date:
             df_tampil = df_tampil[df_tampil['Tanggal'] == filter_date.strftime("%d/%m/%Y")]
-            
-        df_tampil.columns = ['Date', 'Description', 'Qty', 'Category', f'Total ({sym})']
-        st.table(df_tampil)
+        
+        st.caption("💡 *Tip: Click on any Category cell below to change it, then press Save.*")
+        
+        # TABEL INTERAKTIF DENGAN DROPDOWN
+        edited_df = st.data_editor(
+            df_tampil,
+            column_config={
+                "Sheet_Row": None, # Sembunyikan kolom sistem ini dari layar
+                "Tanggal": st.column_config.TextColumn("Date", disabled=True),
+                "Keterangan": st.column_config.TextColumn("Description", disabled=True),
+                "Jumlah": st.column_config.TextColumn("Qty", disabled=True),
+                "Total Expense": st.column_config.TextColumn(f"Total ({sym})", disabled=True),
+                "Kategori": st.column_config.SelectboxColumn(
+                    "Category",
+                    options=KATEGORI_LIST,
+                    required=True
+                )
+            },
+            hide_index=True,
+            use_container_width=True,
+            key="history_editor"
+        )
+        
+        # TOMBOL SIMPAN PERUBAHAN KE GOOGLE SHEETS
+        if st.button("💾 Save Category Changes", use_container_width=True):
+            with st.spinner("Saving changes to database..."):
+                changes_made = False
+                # Cek baris mana saja yang kategorinya diubah oleh user
+                for idx in edited_df.index:
+                    old_cat = df_tampil.loc[idx, 'Kategori']
+                    new_cat = edited_df.loc[idx, 'Kategori']
+                    if old_cat != new_cat:
+                        sheet_row = edited_df.loc[idx, 'Sheet_Row']
+                        worksheet.update_acell(f'E{sheet_row}', new_cat)
+                        changes_made = True
+                
+                if changes_made:
+                    st.success("✅ Categories updated successfully!")
+                    st.rerun()
+                else:
+                    st.info("No changes detected.")
+        
+        st.divider()
         
         # DOWNLOAD CSV BUTTON
-        csv = df_tampil.to_csv(index=False).encode('utf-8')
+        csv = df_tampil.drop(columns=['Sheet_Row']).to_csv(index=False).encode('utf-8')
         st.download_button(label="📥 Export to CSV", data=csv, file_name="expenses_history.csv", mime="text/csv")
         
         # --- PIE CHART (CATEGORY PERCENTAGE) ---
