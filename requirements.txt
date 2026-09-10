@@ -1,6 +1,8 @@
 streamlit
-gspread
-google-auth
-pandas
 google-generativeai
 pillow
+pandas
+gspread
+google-auth
+requests
+plotly
