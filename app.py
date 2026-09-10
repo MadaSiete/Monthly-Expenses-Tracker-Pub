@@ -7,6 +7,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
 import requests
+import plotly.express as px
 
 # ==========================================
 # PAGE CONFIGURATION & CSS
@@ -23,8 +24,14 @@ elegant_css = """
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
-        color: #e0e0e0;
     }
+    
+    /* Ensure text readability against any background */
+    h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, .stText, div[data-testid="metric-container"] label {
+        color: #ffffff !important;
+        text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+    }
+    
     .block-container {
         max-width: 850px !important;
         padding-top: 3rem !important;
@@ -45,15 +52,11 @@ elegant_css = """
         transform: translateY(-5px);
         box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.6);
     }
-    div[data-testid="metric-container"] label {
-        color: #b0bec5 !important;
-        font-weight: 400;
-        letter-spacing: 1px;
-    }
     div[data-testid="stMetricValue"] > div {
-        color: #ffffff !important;
-        font-weight: 600;
+        color: #00f2fe !important;
+        font-weight: 700;
         font-size: clamp(1.1rem, 2.5vw, 1.8rem) !important; 
+        text-shadow: 1px 1px 4px rgba(0,0,0,0.9);
         white-space: nowrap !important;
         text-overflow: clip !important; 
         overflow: visible !important;
@@ -61,6 +64,7 @@ elegant_css = """
     div.stButton > button, div[data-testid="stFormSubmitButton"] > button {
         background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%) !important;
         color: white !important;
+        text-shadow: none !important;
         border: none !important;
         border-radius: 12px !important;
         padding: 10px 24px !important;
@@ -74,14 +78,15 @@ elegant_css = """
         box-shadow: 0 6px 20px rgba(0, 242, 254, 0.6) !important;
     }
     div[data-baseweb="input"], div[data-baseweb="base-input"], div[data-baseweb="select"] > div {
-        background-color: rgba(255, 255, 255, 0.05) !important;
-        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        background-color: rgba(0, 0, 0, 0.4) !important;
+        border: 1px solid rgba(255, 255, 255, 0.3) !important;
         border-radius: 10px !important;
     }
     div[data-baseweb="input"] input {
         color: white !important;
         background-color: transparent !important;
         padding: 12px !important;
+        text-shadow: none !important;
     }
     div[data-baseweb="input"]:focus-within {
         border-color: #00f2fe !important;
@@ -97,14 +102,14 @@ elegant_css = """
         padding: 20px;
     }
     [data-testid="stTable"] {
-        background: rgba(255, 255, 255, 0.05) !important;
+        background: rgba(0, 0, 0, 0.6) !important;
         backdrop-filter: blur(16px);
         border-radius: 15px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
     }
-    [data-testid="stTable"] table { color: white !important; background: transparent !important; width: 100%; }
-    [data-testid="stTable"] th { background-color: rgba(0, 242, 254, 0.1) !important; color: #00f2fe !important; border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important; }
-    [data-testid="stTable"] td { background: transparent !important; border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important; }
+    [data-testid="stTable"] table { color: white !important; background: transparent !important; width: 100%; text-shadow: none !important; }
+    [data-testid="stTable"] th { background-color: rgba(0, 242, 254, 0.2) !important; color: #00f2fe !important; border-bottom: 1px solid rgba(255, 255, 255, 0.3) !important; }
+    [data-testid="stTable"] td { background: transparent !important; border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important; }
     [data-testid="stTable"] th:first-child, [data-testid="stTable"] td:first-child { display: none; }
     html, body { overscroll-behavior: none !important; }
     [data-testid="stSidebarNav"], [data-testid="collapsedControl"] { display: none; }
@@ -114,10 +119,12 @@ elegant_css = """
 st.markdown(elegant_css, unsafe_allow_html=True)
 
 # ==========================================
-# SESSION STATES & GLOBALS
+# SESSION STATES & GLOBALS (PERSISTENT LOGIN)
 # ==========================================
+url_user = st.query_params.get("user")
+
 if 'username' not in st.session_state:
-    st.session_state.username = None
+    st.session_state.username = url_user if url_user else None
 if 'current_page' not in st.session_state:
     st.session_state.current_page = 'home'
 
@@ -125,23 +132,21 @@ CURRENCY_DATA = {
     "IDR": "Rp", "USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", 
     "SGD": "S$", "MYR": "RM", "AUD": "A$", "CAD": "C$"
 }
+KATEGORI_LIST = ["Food & Drink", "Transportation", "Shopping", "Bills & Utilities", "Entertainment", "Other"]
 
 if 'currency' not in st.session_state:
     st.session_state.currency = 'IDR'
 if 'currency_symbol' not in st.session_state:
     st.session_state.currency_symbol = 'Rp'
 
-# Mengambil Kurs dengan Caching (1 Jam)
 @st.cache_data(ttl=3600)
 def fetch_exchange_rate(base, target):
-    if base == target:
-        return 1.0
+    if base == target: return 1.0
     try:
         response = requests.get(f"https://api.exchangerate-api.com/v4/latest/{base}")
         if response.status_code == 200:
             return response.json()['rates'].get(target, 1.0)
-    except:
-        pass
+    except: pass
     return 1.0
 
 # ==========================================
@@ -163,15 +168,11 @@ if st.session_state.username is None:
     st.markdown("<h1 style='text-align: center; color: #1E88E5;'>💸 Expenses Tracker</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; margin-bottom: 30px;'>Sign in to your account</p>", unsafe_allow_html=True)
     
-    try:
-        sh = gc.open(MASTER_SHEET_NAME)
-    except gspread.exceptions.SpreadsheetNotFound:
-        st.error(f"❌ File '{MASTER_SHEET_NAME}' not found.")
-        st.stop()
+    try: sh = gc.open(MASTER_SHEET_NAME)
+    except: st.error("❌ Database file not found. Please contact support."); st.stop()
         
-    try:
-        users_sheet = sh.worksheet("Users")
-    except gspread.exceptions.WorksheetNotFound:
+    try: users_sheet = sh.worksheet("Users")
+    except:
         users_sheet = sh.add_worksheet(title="Users", rows=1000, cols=2)
         users_sheet.insert_row(["Username", "Password"], 1)
 
@@ -181,26 +182,21 @@ if st.session_state.username is None:
         with st.form("form_login"):
             login_user = st.text_input("Username")
             login_pass = st.text_input("Password", type="password")
-            submit_login = st.form_submit_button("Login", use_container_width=True)
+            submit_login = st.form_submit_button("Sign In", use_container_width=True)
             
             if submit_login:
-                if not login_user or not login_pass:
-                    st.warning("Please enter your username and password!")
-                else:
-                    users_data = users_sheet.get_all_records()
-                    if not users_data:
-                        st.error("❌ No accounts registered yet. Please register first.")
+                users_data = users_sheet.get_all_records()
+                if users_data:
+                    df_users = pd.DataFrame(users_data)
+                    user_match = df_users[(df_users['Username'].astype(str).str.lower() == login_user.lower()) & (df_users['Password'].astype(str) == login_pass)]
+                    if not user_match.empty:
+                        st.query_params["user"] = login_user.lower()
+                        st.session_state.username = login_user.lower()
+                        st.session_state.current_page = 'home'
+                        st.rerun()
                     else:
-                        df_users = pd.DataFrame(users_data)
-                        df_users.columns = df_users.columns.str.strip()
-                        user_match = df_users[(df_users['Username'].astype(str).str.lower() == login_user.lower()) & (df_users['Password'].astype(str) == login_pass)]
-                        
-                        if not user_match.empty:
-                            st.session_state.username = login_user.lower()
-                            st.session_state.current_page = 'home'
-                            st.rerun()
-                        else:
-                            st.error("❌ Invalid Username or Password!")
+                        st.error("❌ Invalid Username or Password. Please try again.")
+                else: st.error("No accounts registered yet.")
 
     with tab_register:
         with st.form("form_register"):
@@ -211,59 +207,52 @@ if st.session_state.username is None:
             
             if submit_reg:
                 if not reg_user or not reg_pass:
-                    st.warning("Fields cannot be empty!")
+                    st.warning("All fields are required.")
                 elif reg_pass != reg_pass2:
-                    st.error("❌ Passwords do not match!")
+                    st.error("❌ Passwords do not match.")
                 else:
                     users_data = users_sheet.get_all_records()
                     if users_data:
                         df_users = pd.DataFrame(users_data)
                         if reg_user.lower() in df_users['Username'].astype(str).str.lower().values:
-                            st.error("❌ Username already taken.")
+                            st.error("❌ Username is already taken. Please choose another one.")
                             st.stop()
                     
                     users_sheet.append_row([reg_user.lower(), reg_pass])
-                    st.success("✅ Account created successfully! Switch to the LOGIN tab.")
+                    st.success("✅ Account created successfully! Switch to the LOGIN tab to sign in.")
     st.stop()
 
 # ==========================================
 # APP INITIALIZATION (POST-LOGIN)
 # ==========================================
 genai.configure(api_key=st.secrets["gemini_api_key"])
-model = genai.GenerativeModel('gemini-3.5-flash')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-with st.spinner("Loading data..."):
+with st.spinner("Syncing your data..."):
     sh = gc.open(MASTER_SHEET_NAME)
-    try:
-        worksheet = sh.worksheet(st.session_state.username)
-    except gspread.exceptions.WorksheetNotFound:
-        try:
-            template_sheet = sh.worksheet("Template")
-            worksheet = sh.duplicate_sheet(
-                source_sheet_id=template_sheet.id,
-                new_sheet_name=st.session_state.username
-            )
-        except gspread.exceptions.WorksheetNotFound:
-            st.error("❌ 'Template' tab is missing.")
-            st.stop()
+    try: worksheet = sh.worksheet(st.session_state.username)
+    except:
+        template_sheet = sh.worksheet("Template")
+        worksheet = sh.duplicate_sheet(source_sheet_id=template_sheet.id, new_sheet_name=st.session_state.username)
 
-# Tarik Nilai DB Murni (Database Selalu Dalam IDR)
+# FETCH DB (IDR based)
 total_masuk_str = worksheet.acell('F2').value or '0'
 total_keluar_str = worksheet.acell('G2').value or '0'
 saldo_str = worksheet.acell('H2').value or '0'
+budget_str = worksheet.acell('I2').value or '0' 
 
-# Konversi string format ke Float
 raw_income = float(str(total_masuk_str).replace('.', '').replace(',', '')) if total_masuk_str else 0.0
 raw_expense = float(str(total_keluar_str).replace('.', '').replace(',', '')) if total_keluar_str else 0.0
 raw_balance = float(str(saldo_str).replace('.', '').replace(',', '')) if saldo_str else 0.0
+raw_budget = float(str(budget_str).replace('.', '').replace(',', '')) if budget_str else 0.0
 
-# Ambil Kurs Layar (IDR ke Mata Uang Pilihan)
 rate_to_display = fetch_exchange_rate('IDR', st.session_state.currency)
 sym = st.session_state.currency_symbol
 
 disp_income = raw_income * rate_to_display
 disp_expense = raw_expense * rate_to_display
 disp_balance = raw_balance * rate_to_display
+disp_budget = raw_budget * rate_to_display
 
 def format_curr(value):
     return f"{value:,.0f}" if st.session_state.currency in ['IDR', 'JPY'] else f"{value:,.2f}"
@@ -277,11 +266,7 @@ if st.session_state.current_page == 'home':
         st.title("💸 Expenses Tracker")
         st.caption(f"👤 Logged in as: **{st.session_state.username}**")
     with col_t2:
-        selected_curr = st.selectbox(
-            "Currency", 
-            options=list(CURRENCY_DATA.keys()), 
-            index=list(CURRENCY_DATA.keys()).index(st.session_state.currency)
-        )
+        selected_curr = st.selectbox("Currency", options=list(CURRENCY_DATA.keys()), index=list(CURRENCY_DATA.keys()).index(st.session_state.currency))
         if selected_curr != st.session_state.currency:
             st.session_state.currency = selected_curr
             st.session_state.currency_symbol = CURRENCY_DATA[selected_curr]
@@ -292,257 +277,201 @@ if st.session_state.current_page == 'home':
     col2.metric("Expenses", f"{sym} {format_curr(disp_expense)}")
     col3.metric("Balance", f"{sym} {format_curr(disp_balance)}")
 
+    # ================= BUDGET LIMIT NOTIFICATION =================
+    if disp_budget > 0:
+        st.write(f"**Monthly Budget Limit:** {sym} {format_curr(disp_budget)}")
+        progress = min(disp_expense / disp_budget, 1.0)
+        st.progress(progress)
+        
+        if disp_expense >= disp_budget:
+            st.error("🚨 Budget Exceeded! You have spent more than your monthly limit.")
+        elif disp_expense >= disp_budget * 0.8:
+            st.warning("⚠️ Warning: You've utilized over 80% of your budget. Slow down!")
+            
+    with st.expander("⚙️ Manage Budget Limit"):
+        new_budget = st.number_input(f"Enter Monthly Budget ({sym})", min_value=0.0, step=100.0)
+        if st.button("Save Budget"):
+            worksheet.update_acell('I2', new_budget * fetch_exchange_rate(st.session_state.currency, 'IDR'))
+            st.success("✅ Budget limit updated successfully!")
+            st.rerun()
+
     st.divider()
     st.subheader("📌 Main Menu")
-
     btn_col1, btn_col2, btn_col3 = st.columns(3)
     with btn_col1:
-        if st.button("💰 Add Income", use_container_width=True):
-            st.session_state.current_page = 'income'
-            st.rerun()
-        if st.button("📝 Manual Expense", use_container_width=True):
-            st.session_state.current_page = 'manual_expense'
-            st.rerun()
+        if st.button("💰 Add Income", use_container_width=True): st.session_state.current_page = 'income'; st.rerun()
+        if st.button("📝 Add Expense", use_container_width=True): st.session_state.current_page = 'manual_expense'; st.rerun()
     with btn_col2:
-        if st.button("🤖 Receipt Scanner", use_container_width=True):
-            st.session_state.current_page = 'ai_scanner'
-            st.rerun()
-        if st.button("📋 History", use_container_width=True):
-            st.session_state.current_page = 'history'
-            st.rerun()
+        if st.button("🤖 Scan Receipt", use_container_width=True): st.session_state.current_page = 'ai_scanner'; st.rerun()
+        if st.button("📋 History & Analytics", use_container_width=True): st.session_state.current_page = 'history'; st.rerun()
     with btn_col3:
-        if st.button("💱 Exchange Rate", use_container_width=True):
-            st.session_state.current_page = 'exchange'
-            st.rerun()
+        if st.button("💱 Exchange Rate", use_container_width=True): st.session_state.current_page = 'exchange'; st.rerun()
         if st.button("🚪 Logout", use_container_width=True):
+            st.query_params.clear() 
             st.session_state.username = None
-            st.session_state.current_page = 'home'
             st.rerun()
 
 # ==========================================
 # PAGE 2: ADD INCOME
 # ==========================================
 elif st.session_state.current_page == 'income':
-    if st.button("🏠 Back to Home", use_container_width=True):
-        st.session_state.current_page = 'home'
-        st.rerun()
-
+    if st.button("🏠 Back to Home"): st.session_state.current_page = 'home'; st.rerun()
     st.divider()
     st.title("💰 Add Income")
     
-    with st.form("form_pemasukan"):
+    with st.form("form_income"):
         pemasukan_baru = st.number_input(f"Income Amount ({sym})", min_value=0.0, step=10.0)
-        if st.form_submit_button("Update Income", use_container_width=True) and pemasukan_baru > 0:
-            # Konversi Input (USD/EUR dll) kembali ke IDR untuk Database
-            rate_to_db = fetch_exchange_rate(st.session_state.currency, 'IDR')
-            income_in_idr = pemasukan_baru * rate_to_db
-            
-            worksheet.update_acell('F2', raw_income + income_in_idr)
-            st.success(f"Successfully added! (Saved to database as Rp {income_in_idr:,.0f})")
+        if st.form_submit_button("Save Income", use_container_width=True) and pemasukan_baru > 0:
+            worksheet.update_acell('F2', raw_income + (pemasukan_baru * fetch_exchange_rate(st.session_state.currency, 'IDR')))
+            st.success("✅ Income added successfully!")
             st.rerun()
 
 # ==========================================
-# PAGE 3: MANUAL EXPENSE
+# PAGE 3: ADD EXPENSE (MANUAL)
 # ==========================================
 elif st.session_state.current_page == 'manual_expense':
-    nav_col1, nav_col2 = st.columns(2)
-    with nav_col1:
-        if st.button("🏠 Home", use_container_width=True):
-            st.session_state.current_page = 'home'
-            st.rerun()
-    with nav_col2:
-        if st.button("📋 View History", use_container_width=True):
-            st.session_state.current_page = 'history'
-            st.rerun()
+    if st.button("🏠 Back to Home"): st.session_state.current_page = 'home'; st.rerun()
+    st.title("📝 Add Manual Expense")
 
-    st.divider()
-    st.title("📝 Manual Expense")
-
-    with st.form("form_manual"):
+    with st.form("form_expense"):
         col_m1, col_m2 = st.columns([3, 1])
         with col_m1:
-            nama_barang_manual = st.text_input("Description / Item Name")
+            nama_barang_manual = st.text_input("Description")
         with col_m2:
             jumlah_manual = st.number_input("Qty", min_value=1, value=1)
             
-        nominal_manual = st.number_input(f"Unit Price ({sym})", min_value=0.0, step=5.0)
+        col_m3, col_m4 = st.columns(2)
+        with col_m3:
+            kategori_manual = st.selectbox("Category", KATEGORI_LIST)
+        with col_m4:
+            nominal_manual = st.number_input(f"Unit Price ({sym})", min_value=0.0, step=5.0)
         
         if st.form_submit_button("Save Expense", use_container_width=True):
             if nama_barang_manual and nominal_manual > 0:
-                with st.spinner("Storing..."):
-                    # Konversi Pengeluaran kembali ke IDR
-                    rate_to_db = fetch_exchange_rate(st.session_state.currency, 'IDR')
-                    total_pengeluaran_display = nominal_manual * jumlah_manual
-                    total_pengeluaran_idr = total_pengeluaran_display * rate_to_db
-                    
+                with st.spinner("Saving..."):
+                    total_pengeluaran_idr = (nominal_manual * jumlah_manual) * fetch_exchange_rate(st.session_state.currency, 'IDR')
                     tanggal_manual = (datetime.utcnow() + timedelta(hours=7)).strftime("%d/%m/%Y")
                     baris_baru = len(list(filter(None, worksheet.col_values(1)))) + 1
                     
-                    worksheet.update(
-                        values=[[tanggal_manual, nama_barang_manual, str(jumlah_manual), total_pengeluaran_idr]], 
-                        range_name=f'A{baris_baru}:D{baris_baru}'
-                    )
-                    
-                    pengeluaran_baru = raw_expense + total_pengeluaran_idr
-                    saldo_baru = raw_income - pengeluaran_baru
-                    
-                    worksheet.update(values=[[pengeluaran_baru, saldo_baru]], range_name='G2:H2')
-                    st.success(f"✅ Success! Total: {sym} {format_curr(total_pengeluaran_display)}")
+                    worksheet.update(values=[[tanggal_manual, nama_barang_manual, str(jumlah_manual), total_pengeluaran_idr, kategori_manual]], range_name=f'A{baris_baru}:E{baris_baru}')
+                    worksheet.update(values=[[raw_expense + total_pengeluaran_idr, raw_income - (raw_expense + total_pengeluaran_idr)]], range_name='G2:H2')
+                    st.success("✅ Expense saved successfully!")
                     st.rerun()
             else:
-                st.warning("Please enter a valid description and unit price!")
+                st.warning("Please provide a valid description and unit price.")
 
 # ==========================================
 # PAGE 4: AI RECEIPT SCANNER
 # ==========================================
 elif st.session_state.current_page == 'ai_scanner':
-    nav_col1, nav_col2 = st.columns(2)
-    with nav_col1:
-        if st.button("🏠 Home", use_container_width=True):
-            st.session_state.current_page = 'home'
-            st.rerun()
-    with nav_col2:
-        if st.button("📋 View History", use_container_width=True):
-            st.session_state.current_page = 'history'
-            st.rerun()
-
-    st.divider()
+    if st.button("🏠 Back to Home"): st.session_state.current_page = 'home'; st.rerun()
     st.title("🤖 AI Receipt Scanner")
     
-    with st.form("form_ai_otomatis"):
-        st.caption("Optional: Override description for QRIS / unreadable receipts.")
+    with st.form("form_scanner"):
+        st.caption("Tip: Provide a custom description if the receipt doesn't explicitly state the item.")
         col_ai1, col_ai2 = st.columns([3, 1])
-        with col_ai1:
-            custom_name = st.text_input("Custom Description", placeholder="e.g., Dinner")
-        with col_ai2:
-            custom_qty = st.number_input("Qty", min_value=1, value=1)
+        with col_ai1: custom_name = st.text_input("Custom Description", placeholder="e.g., Dinner at McD")
+        with col_ai2: custom_qty = st.number_input("Qty", min_value=1, value=1)
             
-        uploaded_file = st.file_uploader("Upload receipt here", type=['png', 'jpg', 'jpeg'])
-        submit_ai = st.form_submit_button("Process Receipt", use_container_width=True)
-
-        if submit_ai:
-            if uploaded_file is None:
-                st.warning("⚠️ Please upload your receipt first!")
-            else:
-                with st.spinner("Analyzing with AI..."):
+        uploaded_file = st.file_uploader("Upload receipt image", type=['png', 'jpg', 'jpeg'])
+        if st.form_submit_button("Scan Receipt", use_container_width=True):
+            if uploaded_file:
+                with st.spinner("Analyzing receipt..."):
                     try:
                         image = Image.open(uploaded_file)
                         prompt = f"""
-                        Analyze this receipt. Extract the main data into a pure JSON format without markdown text.
-                        1. "tanggal": Format DD/MM/YYYY.
-                        2. "keterangan": Store name, item name, or transfer recipient.
-                        3. "harga_satuan": Price per 1 pcs of item, OR Grand Total. Ensure the value extracted corresponds to {st.session_state.currency} logic if a currency is present. Pure number only.
+                        Analyze this receipt. Extract data into pure JSON (no markdown).
+                        1. "tanggal": DD/MM/YYYY.
+                        2. "keterangan": Item/Store name.
+                        3. "harga_satuan": Price (Number only, assume {st.session_state.currency} if currency is detected).
+                        4. "kategori": Must be EXACTLY one of: {", ".join(KATEGORI_LIST)}
                         """
                         response = model.generate_content([prompt, image])
-                        res_text = response.text.replace("```json", "").replace("```", "").strip()
-                        data = json.loads(res_text)
+                        data = json.loads(response.text.replace("```json", "").replace("```", "").strip())
                         
-                        tanggal = data.get("tanggal", "")
-                        if not tanggal:
-                            tanggal = (datetime.utcnow() + timedelta(hours=7)).strftime("%d/%m/%Y")
-                            
-                        nama_barang_ai = data.get("keterangan", "Expense (AI)")
-                        final_nama = custom_name.strip() if custom_name.strip() != "" else nama_barang_ai
-                        final_qty = custom_qty 
+                        tanggal = data.get("tanggal", (datetime.utcnow() + timedelta(hours=7)).strftime("%d/%m/%Y"))
+                        final_nama = custom_name.strip() if custom_name.strip() != "" else data.get("keterangan", "Expense")
+                        kategori_ai = data.get("kategori", "Other")
+                        harga_akhir_idr = (float(data.get("harga_satuan", 0)) * custom_qty) * fetch_exchange_rate(st.session_state.currency, 'IDR')
                         
-                        # Harga dari AI (dianggap sesuai mata uang yang dipilih di layar)
-                        harga_satuan_display = float(data.get("harga_satuan", 0))
-                        
-                        if harga_satuan_display > 0:
-                            # Konversi ke IDR untuk DB
-                            rate_to_db = fetch_exchange_rate(st.session_state.currency, 'IDR')
-                            harga_akhir_display = harga_satuan_display * final_qty
-                            harga_akhir_idr = harga_akhir_display * rate_to_db
-                            
+                        if harga_akhir_idr > 0:
                             baris_baru = len(list(filter(None, worksheet.col_values(1)))) + 1
-                            worksheet.update(
-                                values=[[tanggal, final_nama, str(final_qty), harga_akhir_idr]], 
-                                range_name=f'A{baris_baru}:D{baris_baru}'
-                            )
-                            
-                            pengeluaran_baru = raw_expense + harga_akhir_idr
-                            saldo_baru = raw_income - pengeluaran_baru
-                            
-                            worksheet.update(values=[[pengeluaran_baru, saldo_baru]], range_name='G2:H2')
-                            st.success(f"✅ Processed: **{final_nama}** | Total: {sym} {format_curr(harga_akhir_display)}")
+                            worksheet.update(values=[[tanggal, final_nama, str(custom_qty), harga_akhir_idr, kategori_ai]], range_name=f'A{baris_baru}:E{baris_baru}')
+                            worksheet.update(values=[[raw_expense + harga_akhir_idr, raw_income - (raw_expense + harga_akhir_idr)]], range_name='G2:H2')
+                            st.success(f"✅ Saved: **{final_nama}** ({kategori_ai})")
                             st.rerun()
                         else:
-                            st.error("❌ The receipt could not be read.")
-                    except Exception as e:
-                        st.error(f"Failed to process receipt. (Error: {e})")
+                            st.error("❌ Failed to parse receipt amount. Please ensure the image is clear.")
+                    except Exception as e: 
+                        st.error("❌ Error analyzing receipt. Please try another image.")
+            else:
+                st.warning("⚠️ Please upload a receipt image first.")
 
 # ==========================================
-# PAGE 5: TRANSACTION HISTORY
+# PAGE 5: TRANSACTION HISTORY & ANALYTICS
 # ==========================================
 elif st.session_state.current_page == 'history':
-    if st.button("🏠 Back to Home", use_container_width=True):
-        st.session_state.current_page = 'home'
-        st.rerun()
-
+    if st.button("🏠 Back to Home"): st.session_state.current_page = 'home'; st.rerun()
     st.divider()
-    st.title("📋 Transaction History")
+    st.title("📋 History & Analytics")
     
     semua_data = worksheet.get_all_values()
     if len(semua_data) > 1:
-        df = pd.DataFrame(semua_data[1:], columns=semua_data[0])
-        df_transaksi = df[['Tanggal', 'Keterangan / Nama Barang', 'Jumlah', 'Pengeluaran (Rp)']].copy()
-        df_transaksi = df_transaksi[df_transaksi['Tanggal'].astype(bool) & (df_transaksi['Tanggal'] != '')]
+        records = [row + ['Other'] * (5 - len(row)) for row in semua_data[1:]]
+        df = pd.DataFrame(records, columns=['Tanggal', 'Keterangan', 'Jumlah', 'Pengeluaran', 'Kategori'])
+        df = df[df['Tanggal'].astype(bool) & (df['Tanggal'] != '')]
         
-        # Ekstrak string IDR menjadi Float, lalu konversi ke mata uang layar
-        df_transaksi['Total Expense'] = pd.to_numeric(
-            df_transaksi['Pengeluaran (Rp)'].astype(str).str.replace('.', '', regex=False).str.replace(',', '', regex=False), 
-            errors='coerce'
-        ).fillna(0) * rate_to_display
+        df['Total Num'] = pd.to_numeric(df['Pengeluaran'].astype(str).str.replace('.', '', regex=False).str.replace(',', '', regex=False), errors='coerce').fillna(0) * rate_to_display
+        df['Total Expense'] = df['Total Num'].apply(lambda x: f"{sym} {format_curr(x)}")
         
-        # Format string untuk tampilan tabel
-        df_transaksi['Total Expense'] = df_transaksi['Total Expense'].apply(lambda x: f"{sym} {format_curr(x)}")
+        # --- TABLE & DATE FILTER ---
+        st.subheader("📄 Transaction List")
+        filter_date = st.date_input("🗓️ Filter by Date", value=None)
         
-        df_tampil = df_transaksi[['Tanggal', 'Keterangan / Nama Barang', 'Jumlah', 'Total Expense']]
-        df_tampil.columns = ['Date', 'Description', 'Qty', f'Total Expense ({sym})']
+        df_tampil = df[['Tanggal', 'Keterangan', 'Jumlah', 'Kategori', 'Total Expense']]
+        if filter_date:
+            df_tampil = df_tampil[df_tampil['Tanggal'] == filter_date.strftime("%d/%m/%Y")]
+            
+        df_tampil.columns = ['Date', 'Description', 'Qty', 'Category', f'Total ({sym})']
         st.table(df_tampil)
-    else:
-        st.info("No transaction history yet.")
+        
+        # DOWNLOAD CSV BUTTON
+        csv = df_tampil.to_csv(index=False).encode('utf-8')
+        st.download_button(label="📥 Export to CSV", data=csv, file_name="expenses_history.csv", mime="text/csv")
+        
+        # --- PIE CHART (CATEGORY PERCENTAGE) ---
+        st.divider()
+        st.subheader("📊 Expenses by Category")
+        df_pie = df.groupby('Kategori')['Total Num'].sum().reset_index()
+        
+        if not df_pie.empty and df_pie['Total Num'].sum() > 0:
+            fig = px.pie(df_pie, values='Total Num', names='Kategori', hole=0.4, color_discrete_sequence=px.colors.sequential.Tealgrn)
+            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='white'))
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Not enough data available to generate a chart.")
+            
+    else: st.info("No transaction records found.")
 
 # ==========================================
-# PAGE 6: CURRENCY EXCHANGE RATE (KURS)
+# PAGE 6: CURRENCY EXCHANGE RATE
 # ==========================================
 elif st.session_state.current_page == 'exchange':
-    if st.button("🏠 Back to Home", use_container_width=True):
-        st.session_state.current_page = 'home'
-        st.rerun()
-
+    if st.button("🏠 Back to Home"): st.session_state.current_page = 'home'; st.rerun()
     st.divider()
     st.title("💱 Exchange Rate")
-    st.write("Check live currency conversion rates globally.")
     
     with st.form("form_exchange"):
         col_ex1, col_ex2 = st.columns(2)
-        with col_ex1:
-            base_currency = st.selectbox("From", options=list(CURRENCY_DATA.keys()), index=list(CURRENCY_DATA.keys()).index(st.session_state.currency))
-        with col_ex2:
-            target_currency = st.selectbox("To", options=list(CURRENCY_DATA.keys()), index=1 if st.session_state.currency == 'IDR' else 0)
-            
-        amount_to_convert = st.number_input("Amount", min_value=0.0, value=1.0)
+        with col_ex1: base_curr = st.selectbox("From", options=list(CURRENCY_DATA.keys()))
+        with col_ex2: target_curr = st.selectbox("To", options=list(CURRENCY_DATA.keys()), index=1)
+        amt = st.number_input("Amount", min_value=0.0, value=1.0)
         
         if st.form_submit_button("Convert Currency", use_container_width=True):
             with st.spinner("Fetching live rates..."):
-                try:
-                    url = f"https://api.exchangerate-api.com/v4/latest/{base_currency}"
-                    response = requests.get(url)
-                    
-                    if response.status_code == 200:
-                        data = response.json()
-                        rate = data['rates'].get(target_currency)
-                        if rate:
-                            converted_amount = amount_to_convert * rate
-                            base_sym = CURRENCY_DATA[base_currency]
-                            target_sym = CURRENCY_DATA[target_currency]
-                            
-                            st.success(f"📈 **Live Rate:** 1 {base_currency} = {rate} {target_currency}")
-                            st.info(f"**Result:** {base_sym} {amount_to_convert:,.2f} ➔ **{target_sym} {converted_amount:,.2f}**")
-                        else:
-                            st.error("Target currency not found in the exchange data.")
-                    else:
-                        st.error("Failed to fetch exchange rates. Try again later.")
-                except Exception as e:
-                    st.error(f"Network error: {e}")
+                rate = fetch_exchange_rate(base_curr, target_curr)
+                if rate:
+                    st.success(f"📈 1 {base_curr} = {rate} {target_curr}")
+                    st.info(f"**Result:** {CURRENCY_DATA[base_curr]} {amt:,.2f} ➔ **{CURRENCY_DATA[target_curr]} {(amt * rate):,.2f}**")
+                else:
+                    st.error("❌ Failed to fetch current exchange rates.")
