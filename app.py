@@ -231,7 +231,7 @@ if st.session_state.username is None:
 # APP INITIALIZATION (POST-LOGIN)
 # ==========================================
 genai.configure(api_key=st.secrets["gemini_api_key"])
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-3.5-flash')
 
 with st.spinner("Syncing your data..."):
     sh = gc.open(MASTER_SHEET_NAME)
