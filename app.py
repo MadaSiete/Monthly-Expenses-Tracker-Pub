@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import requests
 import plotly.express as px
 import io
+import time # TAMBAHAN UNTUK JEDA NOTIFIKASI
 
 # ==========================================
 # PAGE CONFIGURATION & CSS
@@ -198,6 +199,8 @@ if st.session_state.username is None:
                         st.query_params["user"] = login_user.lower()
                         st.session_state.username = login_user.lower()
                         st.session_state.current_page = 'home'
+                        st.toast(f"Welcome back, {login_user}!", icon="👋")
+                        time.sleep(1)
                         st.rerun()
                     else:
                         st.error("❌ Invalid Username or Password. Please try again.")
@@ -244,13 +247,12 @@ with st.spinner("Syncing your data..."):
 total_masuk_str = worksheet.acell('F2').value or '0'
 total_keluar_str = worksheet.acell('G2').value or '0'
 saldo_str = worksheet.acell('H2').value or '0'
-budget_pct_str = worksheet.acell('I2').value or '80' # Sekarang menyimpan persentase (Default 80%)
+budget_pct_str = worksheet.acell('I2').value or '80' 
 
 raw_income = float(str(total_masuk_str).replace('.', '').replace(',', '')) if total_masuk_str else 0.0
 raw_expense = float(str(total_keluar_str).replace('.', '').replace(',', '')) if total_keluar_str else 0.0
 raw_balance = float(str(saldo_str).replace('.', '').replace(',', '')) if saldo_str else 0.0
 
-# PENGAMANAN: Kalau di sel I2 masih ada nominal jutaan peninggalan versi lama, paksa balik ke 80%
 budget_pct = float(str(budget_pct_str).replace('.', '').replace(',', '')) if budget_pct_str else 80.0
 if budget_pct > 100: 
     budget_pct = 80.0 
@@ -261,8 +263,6 @@ sym = st.session_state.currency_symbol
 disp_income = raw_income * rate_to_display
 disp_expense = raw_expense * rate_to_display
 disp_balance = raw_balance * rate_to_display
-
-# LOGIKA BARU: Budget adalah sekian Persen dari Total Income
 disp_budget = disp_income * (budget_pct / 100)
 
 def format_curr(value):
@@ -303,7 +303,8 @@ if st.session_state.current_page == 'home':
         new_pct = st.number_input("Set Budget Target (% of Income)", min_value=10, max_value=100, value=int(budget_pct), step=5)
         if st.button("Save Target"):
             worksheet.update_acell('I2', str(new_pct))
-            st.success(f"✅ Budget target updated to {new_pct}%!")
+            st.toast(f"✅ Budget target updated to {new_pct}%!", icon="🎯")
+            time.sleep(1.2) # Jeda waktu biar notif pop-up bisa dibaca
             st.rerun()
 
     st.divider()
@@ -334,7 +335,8 @@ elif st.session_state.current_page == 'income':
         pemasukan_baru = st.number_input(f"Income Amount ({sym})", min_value=0.0, step=10.0)
         if st.form_submit_button("Save Income", use_container_width=True) and pemasukan_baru > 0:
             worksheet.update_acell('F2', raw_income + (pemasukan_baru * fetch_exchange_rate(st.session_state.currency, 'IDR')))
-            st.success("✅ Income added successfully!")
+            st.toast("✅ Income added successfully!", icon="💰")
+            time.sleep(1.2) # Jeda notifikasi
             st.rerun()
 
 # ==========================================
@@ -347,7 +349,6 @@ elif st.session_state.current_page == 'manual_expense':
     with nav_col2:
         if st.button("📋 View History", use_container_width=True): st.session_state.current_page = 'history'; st.rerun()
         
-    st.divider()
     st.title("📝 Add Manual Expense")
 
     with st.form("form_expense"):
@@ -372,7 +373,8 @@ elif st.session_state.current_page == 'manual_expense':
                     
                     worksheet.update(values=[[tanggal_manual, nama_barang_manual, str(jumlah_manual), total_pengeluaran_idr, kategori_manual]], range_name=f'A{baris_baru}:E{baris_baru}')
                     worksheet.update(values=[[raw_expense + total_pengeluaran_idr, raw_income - (raw_expense + total_pengeluaran_idr)]], range_name='G2:H2')
-                    st.success("✅ Expense saved successfully!")
+                    st.toast("✅ Expense saved successfully!", icon="📝")
+                    time.sleep(1.2) # Jeda notifikasi
                     st.rerun()
             else:
                 st.warning("Please provide a valid description and unit price.")
@@ -387,7 +389,6 @@ elif st.session_state.current_page == 'ai_scanner':
     with nav_col2:
         if st.button("📋 View History", use_container_width=True): st.session_state.current_page = 'history'; st.rerun()
         
-    st.divider()
     st.title("🤖 AI Receipt Scanner")
     
     with st.form("form_scanner"):
@@ -421,7 +422,8 @@ elif st.session_state.current_page == 'ai_scanner':
                             baris_baru = len(list(filter(None, worksheet.col_values(1)))) + 1
                             worksheet.update(values=[[tanggal, final_nama, str(custom_qty), harga_akhir_idr, kategori_ai]], range_name=f'A{baris_baru}:E{baris_baru}')
                             worksheet.update(values=[[raw_expense + harga_akhir_idr, raw_income - (raw_expense + harga_akhir_idr)]], range_name='G2:H2')
-                            st.success(f"✅ Saved: **{final_nama}** ({kategori_ai})")
+                            st.toast(f"✅ Saved: {final_nama} ({kategori_ai})", icon="🤖")
+                            time.sleep(1.5) # Jeda notifikasi
                             st.rerun()
                         else:
                             st.error("❌ Failed to parse receipt amount. Please ensure the image is clear.")
@@ -429,6 +431,7 @@ elif st.session_state.current_page == 'ai_scanner':
                         st.error(f"❌ Error Detail: {e}")
             else:
                 st.warning("⚠️ Please upload a receipt image first.")
+
 # ==========================================
 # PAGE 5: TRANSACTION HISTORY & ANALYTICS
 # ==========================================
@@ -494,7 +497,8 @@ elif st.session_state.current_page == 'history':
                         changes_made = True
                 
                 if changes_made:
-                    st.success("✅ Categories updated successfully!")
+                    st.toast("✅ Categories updated successfully!", icon="💾")
+                    time.sleep(1.2) # Jeda notifikasi
                     st.rerun()
                 else:
                     st.info("No changes detected.")
