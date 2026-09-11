@@ -414,7 +414,7 @@ elif st.session_state.current_page == 'ai_scanner':
                         else:
                             st.error("❌ Failed to parse receipt amount. Please ensure the image is clear.")
                     except Exception as e: 
-                        st.error("❌ Error analyzing receipt. Please try another image.")
+                        st.error(f"❌ Error Detail: {e}")
             else:
                 st.warning("⚠️ Please upload a receipt image first.")
 
