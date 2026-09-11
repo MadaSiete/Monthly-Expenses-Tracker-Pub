@@ -341,7 +341,13 @@ elif st.session_state.current_page == 'income':
 # PAGE 3: ADD EXPENSE (MANUAL)
 # ==========================================
 elif st.session_state.current_page == 'manual_expense':
-    if st.button("🏠 Back to Home"): st.session_state.current_page = 'home'; st.rerun()
+    nav_col1, nav_col2 = st.columns(2)
+    with nav_col1:
+        if st.button("🏠 Home", use_container_width=True): st.session_state.current_page = 'home'; st.rerun()
+    with nav_col2:
+        if st.button("📋 View History", use_container_width=True): st.session_state.current_page = 'history'; st.rerun()
+        
+    st.divider()
     st.title("📝 Add Manual Expense")
 
     with st.form("form_expense"):
@@ -375,7 +381,13 @@ elif st.session_state.current_page == 'manual_expense':
 # PAGE 4: AI RECEIPT SCANNER
 # ==========================================
 elif st.session_state.current_page == 'ai_scanner':
-    if st.button("🏠 Back to Home"): st.session_state.current_page = 'home'; st.rerun()
+    nav_col1, nav_col2 = st.columns(2)
+    with nav_col1:
+        if st.button("🏠 Home", use_container_width=True): st.session_state.current_page = 'home'; st.rerun()
+    with nav_col2:
+        if st.button("📋 View History", use_container_width=True): st.session_state.current_page = 'history'; st.rerun()
+        
+    st.divider()
     st.title("🤖 AI Receipt Scanner")
     
     with st.form("form_scanner"):
@@ -417,7 +429,6 @@ elif st.session_state.current_page == 'ai_scanner':
                         st.error(f"❌ Error Detail: {e}")
             else:
                 st.warning("⚠️ Please upload a receipt image first.")
-
 # ==========================================
 # PAGE 5: TRANSACTION HISTORY & ANALYTICS
 # ==========================================
